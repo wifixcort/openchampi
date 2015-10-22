@@ -69,7 +69,7 @@ http://crcibernetica.com
 #define CONTROL_SECADO "65 1 b 1 ffff ffff ffff"
 #define RELAY_COLD_WATER "65 2 6 1 ffff ffff ffff"
 #define RELAY_HOT_WATER "65 2 7 1 ffff ffff ffff"
-#define RELAY_DAMPER "65 2 8 1 ffff ffff fff"
+#define RELAY_DAMPER "65 2 8 1 ffff ffff ffff"
 #define RELAY_ALARM "65 2 9 1 ffff ffff ffff"
 #define LIMITS_LOW_H+ "65 3 c 1 ffff ffff ffff"
 #define LIMITS_LOW_H- "65 3 d 1 ffff ffff ffff"
@@ -141,11 +141,11 @@ float co2Level = 0;
 double averageTemperature = 0;
 float externalTemperature = 24;//Standard
 float externalHumidity = 4000;//Just a # for debug
-float internalTemperature, internalHumidity, pva, pvs, dvs, hr, ha, pr, dva, he;
 
 //---RoomControl---
-uint8_t controlState = 0;
+uint8_t controlState = 1;
 String systemPhase = "incubacion1";
+String manualRelay = "";
 //=====================================================================
 
 //---Motor Speed Control---
@@ -159,7 +159,10 @@ int mSpeed = 0;
 uint8_t actualPage = 0;
 String actualState = "";
 String pastState = "";
-char pageId[6] = {0x30, 0x31, 0x32, 0x33, 0x34, 0x35};
+boolean coldWater = true, 
+        hotWater = true,
+        damper = true,
+        alarm = true;//Manual relays state
 String incommingMsg;
 
 void setup() {
@@ -209,8 +212,6 @@ void loop() {
   }else if(actualPage == 1){//
     if(actualState != pastState){
       actualState = pastState;
-      //Serial.print("Estableciendo fase = ");
-      //Serial.println(actualState);
       myNextion.setComponentText("t6", actualState);//String(actualState)
     }//end if
   }//end if
@@ -224,15 +225,19 @@ void loop() {
   globalCurrentTime = millis();//Update current time
   co2Pump(globalCurrentTime);
 
-/*  if(incommingMsg == MODE_AUTO){
+  if(incommingMsg == MODE_AUTO){
     controlState = 0;
   }else if(incommingMsg == MODE_MANUAL){
     controlState = 2;
   }
-*/
-  if(actualPage == 1){
+
+  if(controlState == 0){//Automatic
     updatePage1();
-  }
+  }/*else if((actualPage == 2)&&(controlState == 1)){//Manual
+    updatePage2();
+  }else if(controlState == 2){//Secado
+    updateSecado();
+  }*/
   
   modBusSpeed(averageTemperature, motorSpeed);
 
@@ -308,16 +313,6 @@ int temperatureChecker(unsigned long checkerCurrentTime){
       Serial.print("Internal Moliere = ");
       Serial.println(calculus->mollierData.HR);
     #endif
-    internalTemperature = mollierSensors[0];
-    internalHumidity = calculus->mollierData.HR;
-    pva = calculus->mollierData.pva;
-    pvs = calculus->mollierData.pvs;
-    dvs = calculus->mollierData.dvt;
-    hr = calculus->mollierData.HR;
-    ha = calculus->mollierData.HA;
-    pr = calculus->mollierData.DEW;
-    dva = calculus->mollierData.DVA;
-    he = calculus->mollierData.HE;
     checkerStartT = checkerCurrentTime;
   }//end if
   return 1;
@@ -341,10 +336,11 @@ void serialEvent1(){
 void serialEvent2(){
   incommingMsg = myNextion.listen(); //check for message
   if((incommingMsg != "")&&(incommingMsg.length() == 1)){ // if a message is received...
+    char pageId[6] = {0x30, 0x31, 0x32, 0x33, 0x34, 0x35};
     for(int i = 0; i< 6; i++){
       if(pageId[i] == incommingMsg[0]){
         actualPage = i;
-        EEPROM.write(0, i);
+        EEPROM.write(0, i);//Save page
         Serial.print("msg = ");
         Serial.print(incommingMsg);
         Serial.print(", pagina = ");
@@ -358,6 +354,8 @@ void serialEvent2(){
     Serial.println(incommingMsg);
     if(actualPage == 1){
       systemPhase = incommingMsg;
+    }else if(actualPage == 2){
+      manualRelay = incommingMsg;
     }
   }
 }
@@ -404,16 +402,16 @@ void updatePage0(void){
   myNextion.setComponentText("t10", String(averageTemperature));delay(50);
   myNextion.setComponentText("t11", String(externalTemperature));delay(50);
   myNextion.setComponentText("t12", String(externalHumidity));delay(50);
-  myNextion.setComponentText("t13", String(internalTemperature));delay(50);
-  myNextion.setComponentText("t14", String(internalHumidity));delay(50);
-  myNextion.setComponentText("t20", String(pva));delay(50);
-  myNextion.setComponentText("t21", String(pvs));delay(50);
-  myNextion.setComponentText("t22", String(dvs));delay(50);
-  myNextion.setComponentText("t23", String(hr));delay(50);
-  myNextion.setComponentText("t24", String(ha));delay(50);
-  myNextion.setComponentText("t32", String(pr));delay(50);
-  myNextion.setComponentText("t31", String(dva));delay(50);
-  myNextion.setComponentText("t30", String(he));delay(50);
+  myNextion.setComponentText("t13", String(mollierSensors[0]));delay(50);
+  myNextion.setComponentText("t14", String(calculus->mollierData.HR));delay(50);
+  myNextion.setComponentText("t20", String(calculus->mollierData.pva));delay(50);
+  myNextion.setComponentText("t21", String(calculus->mollierData.pvs));delay(50);
+  myNextion.setComponentText("t22", String(calculus->mollierData.dvt));delay(50);
+  myNextion.setComponentText("t23", String(calculus->mollierData.HR));delay(50);
+  myNextion.setComponentText("t24", String(calculus->mollierData.HA));delay(50);
+  myNextion.setComponentText("t32", String(calculus->mollierData.DEW));delay(50);
+  myNextion.setComponentText("t31", String(calculus->mollierData.DVA));delay(50);
+  myNextion.setComponentText("t30", String(calculus->mollierData.HE));delay(50);
   myNextion.setComponentText("t29", String(co2Level));delay(50);
   
 }
@@ -456,24 +454,48 @@ void updatePage1(void){
         controlState = 2;
       }
       break;
-    case 1://Manual Control
-     /* if(!digitalRead(6)){
-        temperatureIncrease();
-      }else if(!digitalRead(7)){
-        temperatureDecrease();
-      }else if(!digitalRead(8)){
-        humidityIncrease(4, 2);
-      }else if(!digitalRead(9)){
-        humidityDecrease();
-      }else if(!digitalRead(10)){
-        co2Increase();
-      }else if(!digitalRead(11)){
-        co2Decrease();
-      }else if(!digitalRead(12)){
-        alarmOn();
-      }else if(!digitalRead(13)){
-        alarmOff();
-      }*/
+    case 1://Manual Control 
+      if(manualRelay == RELAY_COLD_WATER){//systemPhase == CONTROL_INCUB_1
+        if(coldWater){
+          Serial.println("Agua On");
+          digitalWrite(relays.aguaFriaOn, HIGH);
+          digitalWrite(relays.aguaFriaOff, LOW);
+          coldWater = false;
+        }else{
+          Serial.println("Agua off");
+          digitalWrite(relays.aguaFriaOn, LOW);
+          digitalWrite(relays.aguaFriaOff, HIGH);
+          coldWater = true;
+        }//end if
+      }else if(manualRelay == RELAY_HOT_WATER){
+        if(hotWater){
+          digitalWrite(relays.aguaCalienteOn, HIGH);
+          digitalWrite(relays.aguaCalienteOff, LOW);
+          hotWater = false;
+        }else{
+          digitalWrite(relays.aguaCalienteOn, LOW);
+          digitalWrite(relays.aguaCalienteOff, HIGH);
+          hotWater = true;
+        }//end if
+      }else if(manualRelay == RELAY_DAMPER){
+        Serial.println("damoter");
+        if(damper){
+          digitalWrite(relays.damper, HIGH);
+          damper = false;
+        }else{
+          digitalWrite(relays.damper, LOW);
+          damper = true;
+        }//end if
+      }else if(manualRelay == RELAY_ALARM){
+        if(alarm){
+          digitalWrite(relays.alarm, HIGH);
+          alarm = false;
+        }else{
+          digitalWrite(relays.alarm, LOW);
+          alarm = true;
+        }//end if
+      }//endif
+      manualRelay = "";
       break;
     case 2://Drying
       if(goToDryTime){
@@ -497,7 +519,7 @@ void updatePage1(void){
 void eepromBack(){
   actualPage = EEPROM.read(0);
   String page = "page " + String(actualPage);
-  Serial.println(page);
   myNextion.sendCommand(page.c_str());
+ 
 }
 
