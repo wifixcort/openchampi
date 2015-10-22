@@ -71,18 +71,18 @@ http://crcibernetica.com
 #define RELAY_HOT_WATER "65 2 7 1 ffff ffff ffff"
 #define RELAY_DAMPER "65 2 8 1 ffff ffff ffff"
 #define RELAY_ALARM "65 2 9 1 ffff ffff ffff"
-#define LIMITS_LOW_H+ "65 3 c 1 ffff ffff ffff"
-#define LIMITS_LOW_H- "65 3 d 1 ffff ffff ffff"
-#define LIMITS_HIGH_H+ "65 3 e 1 ffff ffff ffff"
-#define LIMITS_HIGH_H- "65 3 f 1 ffff ffff ffff"
-#define LIMITS_LOW_T+ "65 3 10 1 ffff ffff ffff"
-#define LIMITS_LOW_T- "65 3 11 1 ffff ffff ffff"
-#define LIMITS_HIGH_T+ "65 3 12 1 ffff ffff ffff"
-#define LIMITS_HIGH_T- "65 3 13 1 ffff ffff ffff"
-#define LIMITS_LOW_CO2+ "65 3 14 1 ffff ffff ffff"
-#define LIMITS_LOW_CO2- "65 3 19 1 ffff ffff ffff"
-#define LIMITS_HIGH_CO2+ "65 3 1a 1 ffff ffff ffff"
-#define LIMITS_HIGH_CO2- "65 3 1b 1 ffff ffff ffff"
+#define LIMITS_LOW_HP "65 3 c 1 ffff ffff ffff"
+#define LIMITS_LOW_HL "65 3 d 1 ffff ffff ffff"
+#define LIMITS_HIGH_HP "65 3 e 1 ffff ffff ffff"
+#define LIMITS_HIGH_HL "65 3 f 1 ffff ffff ffff"
+#define LIMITS_LOW_TP "65 3 10 1 ffff ffff ffff"
+#define LIMITS_LOW_TL "65 3 11 1 ffff ffff ffff"
+#define LIMITS_HIGH_TP "65 3 12 1 ffff ffff ffff"
+#define LIMITS_HIGH_TL "65 3 13 1 ffff ffff ffff"
+#define LIMITS_LOW_CO2P "65 3 14 1 ffff ffff ffff"
+#define LIMITS_LOW_CO2L "65 3 19 1 ffff ffff ffff"
+#define LIMITS_HIGH_CO2P "65 3 1a 1 ffff ffff ffff"
+#define LIMITS_HIGH_CO2L "65 3 1b 1 ffff ffff ffff"
 #define MODE_AUTO "65 5 8 1 ffff ffff ffff"
 #define MODE_MANUAL "65 5 7 1 ffff ffff ffff"
 
@@ -165,6 +165,9 @@ boolean coldWater = true,
         alarm = true;//Manual relays state
 String incommingMsg;
 
+//---Limits--
+uint8_t Ltemp, Htemp, Lco2, Hco2, Lhumidity, Hhumidity;
+
 void setup() {
 
   #if defined(DEBUG)
@@ -228,16 +231,18 @@ void loop() {
   if(incommingMsg == MODE_AUTO){
     controlState = 0;
   }else if(incommingMsg == MODE_MANUAL){
+    controlState = 1;
+  }else if(incommingMsg == CONTROL_SECADO){
     controlState = 2;
   }
 
   if(controlState == 0){//Automatic
     updatePage1();
-  }/*else if((actualPage == 2)&&(controlState == 1)){//Manual
+  }else if((actualPage == 2)&&(controlState == 1)){//Manual
     updatePage2();
   }else if(controlState == 2){//Secado
     updateSecado();
-  }*/
+  }
   
   modBusSpeed(averageTemperature, motorSpeed);
 
@@ -424,8 +429,6 @@ void updatePage1(void){
   but user can't act directly on the system
   In manual control the user have total control over the system,
   no parameter is controlled automatically */  
-    switch(controlState){
-    case 0://Automatic Control
       //systemPhase = //Take form screen, from EEPROM or both???   
       if(systemPhase == CONTROL_INCUB_1){
         motorSpeed = incubationPhase1(averageTemperature, 24, 27, mollierSensors[0], externalTemperature);
@@ -452,9 +455,10 @@ void updatePage1(void){
         pastState = "secado";
         goToDryTime = true;
         controlState = 2;
-      }
-      break;
-    case 1://Manual Control 
+      }  
+}//end updatePage1
+
+void updatePage2(void){
       if(manualRelay == RELAY_COLD_WATER){//systemPhase == CONTROL_INCUB_1
         if(coldWater){
           Serial.println("Agua On");
@@ -496,8 +500,9 @@ void updatePage1(void){
         }//end if
       }//endif
       manualRelay = "";
-      break;
-    case 2://Drying
+}//end updatePage2
+
+void updateSecado(void){
       if(goToDryTime){
         drying();//----Start drying
         dryingStartT = millis();
@@ -509,17 +514,75 @@ void updatePage1(void){
         unsigned long dryingStopT = millis();
         dryingTotalT = (dryingStartT-dryingStopT)*1000*60;//Time in minutes
         //Serial.println(dryingTotalT);
-      }//end if
-      break;
-    default:
-      break;
-  }//end switch  
-}//end updatePage1
+      }//end if 
+}//end updateSecado
 
 void eepromBack(){
   actualPage = EEPROM.read(0);
   String page = "page " + String(actualPage);
   myNextion.sendCommand(page.c_str());
+
+  /*if(Lhumidity != 0)
+    Lhumidity = EEPROM.read(1);
+  if(Hhumidity != 0)
+    Hhumidity = EEPROM.read(2);
+  if(Ltemp != 0)
+    Ltemp = EEPROM.read(3);
+  if(Htemp != 0)
+    Htemp = EEPROM.read(4);
+  if(Hco2 != 0)
+    Hco2 = EEPROM.read(5);
+  if(Lco2 != 0)
+    Lco2 = EEPROM.read(6);
+  */
  
 }
+
+void updateLimits(void){
+  //uint8_t Ltemp, Htemp, Lco2, Hco2, Lhumidity, Hhumidity;
+  if(incommingMsg == LIMITS_LOW_HP){
+    Lhumidity++;
+//    EEPROM.write(1, Lhumidity);
+  }else if(incommingMsg == LIMITS_LOW_HL){
+    Lhumidity--;
+//    EEPROM.write(1, Lhumidity);
+  }else if(incommingMsg == LIMITS_HIGH_HP){
+    Hhumidity++;
+//    EEPROM.write(2, Hhumidity);
+  }else if(incommingMsg == LIMITS_HIGH_HL){
+    Hhumidity--;
+//    EEPROM.write(2, Hhumidity);
+  }else if(incommingMsg == LIMITS_LOW_TP){
+    Ltemp++;
+//    EEPROM.write(3, Ltemp);
+  }else if(incommingMsg == LIMITS_LOW_TL){
+    Ltemp--;
+//    EEPROM.write(3, Ltemp);
+  }else if(incommingMsg == LIMITS_HIGH_TP){
+    Htemp++;
+//    EEPROM.write(4, Htemp);
+  }else if(incommingMsg == LIMITS_HIGH_TL){
+    Htemp--;
+//    EEPROM.write(4, Htemp);
+  }else if(incommingMsg == LIMITS_HIGH_CO2P){
+    Hco2++;
+//    EEPROM.write(5, Hco2);
+  }else if(incommingMsg == LIMITS_HIGH_CO2L){
+    Hco2--;
+//    EEPROM.write(5, Hco2);
+  }else if(incommingMsg == LIMITS_LOW_CO2P){
+    Lco2++;
+//    EEPROM.write(6, Lco2);
+  }else if(incommingMsg == LIMITS_LOW_CO2L){
+    Lco2--;
+//    EEPROM.write(6, Lco2);
+  }
+//  myNextion.setComponentText("t10", String(Lhumidity));delay(50);
+//  myNextion.setComponentText("t11", String(Hhumidity));delay(50);
+//  myNextion.setComponentText("t12", String(Ltemp));delay(50);
+//  myNextion.setComponentText("t13", String(Htemp));delay(50);
+//  myNextion.setComponentText("t14", String(Lco2));delay(50);
+//  myNextion.setComponentText("t20", String(Hco2));delay(50);
+
+}//end updateLimits
 
