@@ -14,6 +14,8 @@
 #define CHILLER 8
 #define BOILER 9
 
+#define ONE_WIRE_BUS_1 5
+
 int byteReceived;
 int byteSend;
 
@@ -34,7 +36,9 @@ byte chillerAnswer[6] = {0x02, 0x06, 0x00, 0x00, 0x00, 0x00};
 SoftwareSerial dbg(2, 3);
 
 unsigned long startT;
+unsigned long conditionsStarT;
 unsigned long interval = 1000;
+unsigned long condInterval = 1000;
 
 MollierMin *ambient;
 double *mollierSensors;
@@ -50,27 +54,40 @@ void setup() {
   pinMode(SSerialTxControl, OUTPUT);
   pinMode(CHILLER, OUTPUT);
   pinMode(BOILER, OUTPUT);
+
+  ambient = new MollierMin(ONE_WIRE_BUS_1);
  
   digitalWrite(SSerialTxControl, RS485Receive);  // Init Transceiver  
+  condInterval *= 20;
   interval *= 1.5;
-}
+  
+}//end setup
 
 void loop() {
     serialEvent();
-    unsigned long current = millis();
-    if(current - startT > interval){
+    unsigned long globalCurrentT = millis();
+    //Print Buffer every "interval" time
+    if((globalCurrentT - startT) > interval){
       for(uint8_t i = 0; i < 7; i++){
         dbg.print(chillerBuff[i]);
         dbg.print("-");
       }//end if
       dbg.println();
-      startT = current;
+      startT = globalCurrentT;
     }//end if
 
-    
+  globalCurrentT = millis();
+  if((globalCurrentT - conditionsStarT) > condInterval){
+    dbg.println("Sending Wheter Conditions");
+    modbusAswer();
+    conditionsStarT = globalCurrentT;
+  }//end if
+  
+    //Find CRC
     CRC16(chillerBuff, 5);
+    //Check if message is our
     if((chillerBuff[0] == 0x02)&&(chillerBuff[1] == 0x06)){//
-      if((chillerBuff[5] == uchCRCLo)&&(chillerBuff[6] == uchCRCHi)){
+      if((chillerBuff[5] == uchCRCLo)&&(chillerBuff[6] == uchCRCHi)){//Check valid message
         coldWaterT[chillerBuff[2]] = chillerBuff[3];
         hotWaterT[chillerBuff[2]] = chillerBuff[4];
       }//end if      
@@ -90,7 +107,7 @@ uint8_t updateChiller(){
       if(!digitalRead(CHILLER)){
         digitalWrite(CHILLER, HIGH);
         dbg.println("CHILLER ON");
-        modbusAswer();
+        //modbusAswer();
       }//end if
       return 1;
     }//end if
@@ -98,7 +115,7 @@ uint8_t updateChiller(){
   if(digitalRead(CHILLER)){
     dbg.println("CHILLER OFF");
     digitalWrite(CHILLER, LOW);
-    modbusAswer();
+    //modbusAswer();
   }//end if
   return 0;
 }//end updateChiller
@@ -109,7 +126,7 @@ uint8_t updateBoiler(){
       if(!digitalRead(BOILER)){
         digitalWrite(BOILER, HIGH);
         dbg.println("BOILER ON");
-        modbusAswer();
+        //modbusAswer();
       }//end if
       return 1;
     }//end if
@@ -117,26 +134,35 @@ uint8_t updateBoiler(){
   if(digitalRead(BOILER)){
     dbg.println("BOILER OFF");
     digitalWrite(BOILER, LOW);
-    modbusAswer();
+    //modbusAswer();
   }//end if
   return 0;  
 }//end updateBuiler
 
 void modbusAswer(){
+  //dbg.println("Read Sensors");
   ambient->readSensorTemperatures();
   ambient->getMollierMinTemperatureSensors(mollierSensors);
 byte chillerAnswer[6] = {0x02, 0x06, 0x00, 0x00, 0x00, 0x00};
 //ID, MODIF, TEMP, HUMID, CRC-, CRC+
 
-  
-  chillerAnswer[2] = mollierSensors[0];
-  chillerAnswer[3] = mollierSensors[1];
+  //dbg.println("Preparing packet");
+  //dbg.println(mollierSensors[0]);//Temperature
+  //dbg.println(ambient->MollierMinData.HR);//
+  chillerAnswer[2] = mollierSensors[0];//Temperature
+  chillerAnswer[3] = ambient->MollierMinData.HR;//
+  dbg.println("Checking CRC");
   CRC16(chillerAnswer, 4);
   chillerAnswer[4] = uchCRCLo;
   chillerAnswer[5] = uchCRCHi;
+  for(uint8_t i = 0; i < 6; i++){
+    dbg.print(chillerAnswer[i]);
+    dbg.print("-");
+  }//end for
+  dbg.println();
   digitalWrite(SSerialTxControl, RS485Transmit);
   delay(11);
-    RS485Serial.write(chillerAnswer, 6);
+  RS485Serial.write(chillerAnswer, 6);
   delay(11);
   digitalWrite(SSerialTxControl, RS485Receive);
   
@@ -160,8 +186,8 @@ void serialEvent(){
     }//end if
   }//end while
   //dbg.println();
-  Serial.flush();
-  dbg.flush();
+//  Serial.flush();
+//  dbg.flush();
 }//end serialEvent1
 
 static unsigned char auchCRCHi[] = {
