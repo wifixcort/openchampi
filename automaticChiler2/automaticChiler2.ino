@@ -25,7 +25,7 @@ unsigned char uchCRCLo = 0xFF; /* low byte of CRC initialized */
 byte coldWaterT[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
 byte hotWaterT[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
 
-byte ID = 0x2;
+byte ID = 0x02;
 
 byte chillerBuff[7] = {0x01, 0x06, 0x00, 0x00, 0x00, 0x5D, 0x48};
 //ID, MODIF, ROOM, CHILLER_STATE, BOILER_STATE, CRC-, CRC+

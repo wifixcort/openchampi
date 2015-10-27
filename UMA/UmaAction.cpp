@@ -136,5 +136,3 @@ uint8_t alarmOn(void){
 void alarmOff(void){
   digitalWrite(relay.alarm, LOW);
 }//end alarmOff
-
-

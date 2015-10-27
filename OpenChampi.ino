@@ -44,7 +44,7 @@
 
 #define nextion Serial2
 //#define DEBUG
-#define DEBUG2
+//#define DEBUG2
 #define MINPRESSURE 10
 #define MAXPRESSURE 1000
 #define ONE_WIRE_BUS_1 5
@@ -86,14 +86,9 @@
 #define MODE_AUTO "65 5 8 1 ffff ffff ffff"
 #define MODE_MANUAL "65 5 7 1 ffff ffff ffff"
 
-
+uint8_t i = 0;
 
 //---Structures declarations---
-struct setPointVariables{
-  float sPointValue;
-  int sBlv, sBarv, sBox, sI;
-  setPointVariables(){sI=0;}//set sI zero default value
-};//setPointVariables
 
 struct relaysModule{
   uint8_t aguaFriaOn = 38;//Open   
@@ -108,39 +103,42 @@ struct relaysModule{
 
 //---Class declarations---
 Mollier *calculus;//Created in heap
-MQ135 *gasSensor;
+MQ135 gasSensor(CO2SENSOR);
 //---temperatureChecker---
 double *compostSensors;
 double *mollierSensors;
 //---Weg VFD---
-WegVFD *cfw500;
+//WegVFD *cfw500;
+WegVFD cfw500(RS485Serial, 19200, SSerialTxControl);
 //---Nextion Screen---
 Nextion myNextion(nextion, 9600); //create a Nextion object named myNextion using the nextion serial port @ 9600bps
 
 //----Structure definition in Mollier class---
-setPointVariables spHumedad;
+//setPointVariables spHumedad;
 
 
 //float M, relativeHumidity, absouleHumidity, specificHumidity, outdoorHumidity, absoluteHumidityOutside;//variable de HR 
 
 //----------------State Machines Variables-------------------
-unsigned long actionRelayStartT,
-              co2PumpStartT, 
+//actionRelayStartT,
+unsigned long co2PumpStartT, 
               co2SensorStartT, 
               modStartT, 
-              chModStart, 
+              chModStart,
+              piModStartT, 
               checkerStartT, 
               page0StartT, 
               page1StartT, 
               page2StartT, 
               page3StartT,
               page5StartT;
-
-unsigned long actionRelayIntervalT = 1000,
-  co2PumpIntervalT = 1000,
+//actionRelayIntervalT = 1000,
+  
+unsigned long co2PumpIntervalT = 1000,
   checkerIntervalT = 1000,//1s default
   modIntervalT = 1000,
   chModInterval = 1000,
+  piModIntervalT = 1000,
   page0IntervalT = 1000,
   page1IntervalT = 1000,
   page2IntervalT = 1000,
@@ -156,8 +154,8 @@ unsigned long dryingStartT, dryingTotalT;
 float co2Level = 0;
 
 double averageTemperature = 0;
-float externalTemperature = 24;//Standard
-float externalHumidity = 4000;//Just a # for debug
+float externalTemperature;//Standard
+float externalHumidity;//Just a # for debug
 
 //---RoomControl---
 uint8_t controlState = 0;
@@ -172,14 +170,19 @@ unsigned char uchCRCLo = 0xFF; /* low byte of CRC initialized */
 byte buff[8] = {0x01, 0x06, 0x02, 0xAB, 0x00, 0x00, 0xF9, 0x92};//Default 0Hz 
 int mSpeed = 0;
 
-//---Chiller Mod---
+//---Chiller Modbus---
 byte chillerBuff[7] = {0x01, 0x06, 0x00, 0x00, 0x00, 0xAB, 0x05};
 //ID, MODIF, ROOM, CHILLER_STATE, BOILER_STATE, CRC-, CRC+
 byte chillerAnswer[6] = {0x02, 0x06, 0x00, 0x00, 0x00, 0x00};
 //ID, MODIF, TEMP, HUMID, CRC-, CRC+
 
+//---RaspberryPi Modbus---
+byte piMsgBuff[31] = {0x03, 0x03, 26, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+//ID, READ REGISTERS, COUNT, LoTEMP, HiTEMP, LoEXTtemp, HiEXTtemp, LoEXThum, HiEXThum, LoAMBtEMP, HiAMBtEMP, LoPVA, HiPVA, LoPVS, HiPVS, LoDVT, HiDVT, LoHR, HiHR, LoHA, HiHA, LoDEW, HiDEW, LoDVA, HiDVA, LoHE, HiHE, LoCO2, HiCO2, CRC-, CRC+
+//ID, READ REGISTERS, COUNT, TEMP, EXTtemp, EXThum, AMBtEMP, PVA, PVS, DVT, HR, HA, DEW, DVA, HE, CO2
 
 //---Screen---
+char pageId[6] = {0x30, 0x31, 0x32, 0x33, 0x34, 0x35};
 uint8_t actualPage = 0;
 String actualState = "";
 String pastState = "";
@@ -195,47 +198,41 @@ float Lco2, Hco2, Lhumidity, Hhumidity;
 
 void setup() {
 
-#if defined(DEBUG)
-  Serial.begin(19200);
-  Serial.println("Starting OpenChampi Automatization Control...");
-  Serial.flush();
-#endif
+Serial.begin(19200);
+Serial.println("Starting OpenChampi Automatization Control...");
+Serial.flush();
 
-#if defined(DEBUG2)
-  Serial.begin(19200);
-  Serial.println("Starting OpenChampi Automatization Control...");
-  Serial.flush();
-#endif 
 
   //Set all relay pins in a few rows posible as outputs
-  for(uint8_t i = 38; i < 46; i++){//8 relays
+  for(i = 38; i < 46; i++){//8 relays
     pinMode(i,OUTPUT);//Pin Mode
     digitalWrite(i, LOW);//Default state LOW
   }//end for
 
-  for(uint8_t i = 6; i < 14; i++){
+  for(i = 6; i < 14; i++){
     pinMode(i, INPUT_PULLUP);
   }//end for
   myNextion.init();
   compostSensors = new double[8];
   mollierSensors = new double[2];
   calculus = new Mollier(ONE_WIRE_BUS_1, ONE_WIRE_BUS_2, ONE_WIRE_BUS_3);
-  gasSensor = new MQ135(CO2SENSOR);
+  //gasSensor = new MQ135(CO2SENSOR);
   
-  actionRelayIntervalT *= 45;//45 seconds
+  //actionRelayIntervalT *= 45;//45 seconds
   co2PumpIntervalT *= 60*30;//Every 30 minutes
   checkerIntervalT *= 60*0.25;//Every 5 minutes
 
-  modIntervalT *= 3;
-  chModInterval *= 7;
+  modIntervalT *= 3;//Weg interval
+  chModInterval *= 7;//Chiller interval
+  piModIntervalT *= 10;//Raspberry Pi interval
 
   page0IntervalT *= 4;//Every 4 seconds
   page1IntervalT *= 2;
   page2IntervalT *= 2;
-  page3IntervalT *= 3;//Every 5 seconds
+  page3IntervalT *= 3;//Every 3 seconds
   page5IntervalT *= 2;
 
-  cfw500 = new WegVFD(RS485Serial, 19200, SSerialTxControl);
+  //cfw500 = new WegVFD(RS485Serial, 19200, SSerialTxControl);
   pinMode(SSerialTxControl, OUTPUT);
   digitalWrite(SSerialTxControl, RS485Receive);  // Init Transceiver    
   eepromBack();
@@ -347,16 +344,34 @@ void loop() {
   }//end if
   globalCurrentTime = millis();//Update current time
   if((globalCurrentTime - chModStart) > chModInterval){
-      for(uint8_t i = 0; i < 7; i++){
-        Serial.print(chillerBuff[i]);
-        Serial.print("-");
-      }//end if
-      Serial.println();
+      #if defined(DEBU2)
+        for(i = 0; i < 7; i++){
+          Serial.print(chillerBuff[i]);
+          Serial.print("-");
+        }//end if
+        Serial.println();
+      #endif
     modBusChiller(2, 1, digitalRead(relays.aguaFriaOn), digitalRead(relays.aguaCalienteOn));
     chModStart = globalCurrentTime;
   }//end if
+
+  globalCurrentTime = millis();//Update current time
+  if((globalCurrentTime - piModStartT) > piModIntervalT){
+    //Serial.println("Sendig Report to Raspberry Pi");
+    modBusPi(3);
+    piModStartT = globalCurrentTime;
+  }//end if
+
   
 }//end loop
+
+#if defined(DEBUG)
+  int freeRam (){
+    extern int __heap_start, *__brkval; 
+    int v; 
+    return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval); 
+  }
+#endif
 
 int co2Pump(unsigned long co2PumpCurrenTime){
   //Start suck out 45s before read CO2 level
@@ -376,7 +391,7 @@ int co2Pump(unsigned long co2PumpCurrenTime){
 	Serial.println("Reading MQ135 Sensor");
 #endif
     digitalWrite(relays.pumpCO2, LOW);
-    co2Level = gasSensor->getPPM();//
+    co2Level = gasSensor.getPPM();//
 #if defined(DEBUG)
 	Serial.println("CO2 Level = " + String(co2Level));
 #endif
@@ -431,9 +446,8 @@ int temperatureChecker(unsigned long checkerCurrentTime){
   }//end if
 
   if((chillerAnswer[0] == 0x02)&&(chillerAnswer[1] == 0x06)){
-    cfw500->CRC16(chillerAnswer, 4, uchCRCLo, uchCRCHi);
+    cfw500.CRC16(chillerAnswer, 4, uchCRCLo, uchCRCHi);
     if((chillerAnswer[4] == uchCRCLo)&&(chillerAnswer[5] == uchCRCHi)){
-      Serial.println("OK");
       externalTemperature =  chillerAnswer[2];
       externalHumidity = chillerAnswer[3];
     }//end if
@@ -445,7 +459,7 @@ int temperatureChecker(unsigned long checkerCurrentTime){
 }//end temperatureChecker
 
 void serialEvent1(){
-  uint8_t i = 0;
+  i = 0;
   while(RS485Serial.available()) { //Look for data from cfw500
     delay(1);
     if (RS485Serial.available()){  //Look for data from other cfw500
@@ -461,26 +475,31 @@ void serialEvent1(){
   }//end while
 }//end serialEvent1
 
+
 void serialEvent2(){
   incommingMsg = myNextion.listen(); //check for message
   if((incommingMsg != "")&&(incommingMsg.length() == 1)){ // if a message is received...
     char pageId[6] = {0x30, 0x31, 0x32, 0x33, 0x34, 0x35};
-    for(int i = 0; i< 6; i++){
+    for(i = 0; i< 6; i++){
       if(pageId[i] == incommingMsg[0]){
         actualPage = i;
         EEPROM.write(0, i);//Save page
-        Serial.print("msg = ");
-        Serial.print(incommingMsg);
-        Serial.print(", pagina = ");
-        Serial.println(actualPage); 
+//        #if defined(DEBU2)
+          Serial.print("msg = ");
+          Serial.print(incommingMsg);
+          Serial.print(", pagina = ");
+          Serial.println(actualPage); 
+//        #endif
         break;
       }//end if
     }//end for
   }//end if
   else if(incommingMsg != ""){
     icomBtn = incommingMsg;
-    Serial.print("INCOM = ");
-    Serial.println(incommingMsg);
+    #if defined(DEBUG)
+      Serial.print("Boton = ");
+      Serial.println(incommingMsg);
+    #endif
     if(actualPage == 1){
       systemPhase = incommingMsg;
     }else if(actualPage == 2){
@@ -491,6 +510,84 @@ void serialEvent2(){
   }//end if
 }//end serialEvent2
 
+void modBusPi(byte id){
+//ID, READ REGISTERS, COUNT, LoTEMP, HiTEMP, LoEXTtemp, HiEXTtemp, LoEXThum, HiEXThum, LoAMBtEMP, HiAMBtEMP, LoPVA, HiPVA, LoPVS, HiPVS, LoDVT, HiDVT, LoHR, HiHR, LoHA, HiHA, LoDEW, HiDEW, LoDVA, HiDVA, LoHE, HiHE, LoCO2, HiCO2, CRC-, CRC+
+//cfw500->twoHex(speed, spdhex1, spdhex2);
+  spdhex1 = spdhex2 = 0;
+
+  uint8_t j = 0;
+  //piMsgBuff[0] = id;
+  cfw500.twoHex(averageTemperature, spdhex1, spdhex2);
+  piMsgBuff[3] = spdhex1;
+  piMsgBuff[4] = spdhex2;
+  spdhex1 = spdhex2 = 0;
+  cfw500.twoHex(externalTemperature, spdhex1, spdhex2);
+  piMsgBuff[5] = spdhex1;
+  piMsgBuff[6] = spdhex2;
+  spdhex1 = spdhex2 = 0;
+  cfw500.twoHex(externalHumidity, spdhex1, spdhex2);
+  piMsgBuff[7] = spdhex1;
+  piMsgBuff[8] = spdhex2;
+  spdhex1 = spdhex2 = 0;
+  cfw500.twoHex(mollierSensors[0], spdhex1, spdhex2);
+  piMsgBuff[9] = spdhex1;
+  piMsgBuff[10] = spdhex2;
+  spdhex1 = spdhex2 = 0;
+  cfw500.twoHex(calculus->mollierData.pva, spdhex1, spdhex2);
+  piMsgBuff[11] = spdhex1;
+  piMsgBuff[12] = spdhex2;
+  spdhex1 = spdhex2 = 0;
+  cfw500.twoHex(calculus->mollierData.pvs, spdhex1, spdhex2);
+  piMsgBuff[13] = spdhex1;
+  piMsgBuff[14] = spdhex2;
+  spdhex1 = spdhex2 = 0;
+  cfw500.twoHex(calculus->mollierData.dvt, spdhex1, spdhex2);
+  piMsgBuff[15] = spdhex1;
+  piMsgBuff[16] = spdhex2;
+  spdhex1 = spdhex2 = 0;
+  cfw500.twoHex(calculus->mollierData.HR, spdhex1, spdhex2);
+  piMsgBuff[17] = spdhex1;
+  piMsgBuff[18] = spdhex2;
+  spdhex1 = spdhex2 = 0;
+  cfw500.twoHex(calculus->mollierData.HA, spdhex1, spdhex2);
+  piMsgBuff[19] = spdhex1;
+  piMsgBuff[20] = spdhex2;
+  spdhex1 = spdhex2 = 0;
+  cfw500.twoHex(calculus->mollierData.DEW, spdhex1, spdhex2);
+  piMsgBuff[21] = spdhex1;
+  piMsgBuff[22] = spdhex2;
+  spdhex1 = spdhex2 = 0;
+  cfw500.twoHex(calculus->mollierData.DVA, spdhex1, spdhex2);
+  piMsgBuff[23] = spdhex1;
+  piMsgBuff[24] = spdhex2;
+  spdhex1 = spdhex2 = 0;
+  cfw500.twoHex(calculus->mollierData.HE, spdhex1, spdhex2);
+  piMsgBuff[25] = spdhex1;
+  piMsgBuff[26] = spdhex2;
+  spdhex1 = spdhex2 = 0;
+  cfw500.twoHex(co2Level, spdhex1, spdhex2);
+  piMsgBuff[27] = spdhex1;
+  piMsgBuff[28] = spdhex2;
+  spdhex1 = spdhex2 = 0;
+  cfw500.CRC16(piMsgBuff, 28, uchCRCLo, uchCRCHi);
+  piMsgBuff[29] = uchCRCLo;
+  piMsgBuff[30] = uchCRCHi;
+//  for(i = 0; i < 31; i++){
+//    Serial.print(piMsgBuff[i]);  
+//    Serial.print("-");
+//  }
+//  Serial.println();
+  
+  digitalWrite(pin13Led, HIGH);  // Show activity
+  cfw500.enableTransmit();
+  delay(11);
+  RS485Serial.write(piMsgBuff, 31);
+  delay(21); 
+  cfw500.disableTransmit();
+  digitalWrite(pin13Led, LOW);  // Show activity
+
+}//end modBusPi
+
 void modBusChiller(byte id, byte idRoom, byte cWaterOn, byte hWaterOn){
  //ID, MODIF, ROOM, CHILLER_STATE, BOILER_STATE, CRC-, CRC+
  chillerBuff[0] = id;
@@ -499,43 +596,42 @@ void modBusChiller(byte id, byte idRoom, byte cWaterOn, byte hWaterOn){
  chillerBuff[4] = hWaterOn;
   digitalWrite(pin13Led, HIGH);  // Show activity
 
-  cfw500->CRC16(chillerBuff, 5, uchCRCLo, uchCRCHi);//Find CRC+ and CRC-
+  cfw500.CRC16(chillerBuff, 5, uchCRCLo, uchCRCHi);//Find CRC+ and CRC-
   chillerBuff[5] = uchCRCLo;
   chillerBuff[6] = uchCRCHi;  
   //  Serial.println("Sending message...");  
-  cfw500->enableTransmit();
+  cfw500.enableTransmit();
 
   delay(11);
   RS485Serial.write(chillerBuff, 7);
   delay(11);
   
-  cfw500->disableTransmit();
+  cfw500.disableTransmit();
   digitalWrite(pin13Led, LOW);  // Show activity
 }//end modBusChiller
 
 void modBusSpeed(float mValue, uint8_t speed){
-  //    Serial.print("Temp = ");
-  //  Serial.print(mValue);
-  //  Serial.print("--MSpeed = ");
-  //  Serial.println(speed);
-  cfw500->speedTwoHex(speed, spdhex1, spdhex2);
-  
+    //Serial.print("Temp = ");
+    //Serial.print(mValue);
+    //Serial.print("--MSpeed = ");
+    //Serial.println(speed);
+  cfw500.speedtwoHex(speed, spdhex1, spdhex2);
   buff[4] = spdhex1;
   buff[5] = spdhex2;
  
   digitalWrite(pin13Led, HIGH);  // Show activity
 
-  cfw500->CRC16(buff, 6, uchCRCLo, uchCRCHi);//Find CRC+ and CRC-
+  cfw500.CRC16(buff, 6, uchCRCLo, uchCRCHi);//Find CRC+ and CRC-
   buff[6] = uchCRCLo;
   buff[7] = uchCRCHi;  
   //  Serial.println("Sending message...");  
-  cfw500->enableTransmit();
+  cfw500.enableTransmit();
 
   delay(5);
   RS485Serial.write(buff, 8);
   delay(5);
   
-  cfw500->disableTransmit();
+  cfw500.disableTransmit();
 
   digitalWrite(pin13Led, LOW);  // Show activity 
 
@@ -552,20 +648,20 @@ void modBusSpeed(float mValue, uint8_t speed){
 }//end modBusSpeed
 
 void updatePage0(void){
-  myNextion.setComponentText("t10", String(averageTemperature));delay(50);
-  myNextion.setComponentText("t11", String(externalTemperature));delay(50);
-  myNextion.setComponentText("t12", String(externalHumidity));delay(50);
-  myNextion.setComponentText("t13", String(mollierSensors[0]));delay(50);
-  myNextion.setComponentText("t14", String(calculus->mollierData.HR));delay(50);
-  myNextion.setComponentText("t20", String(calculus->mollierData.pva));delay(50);
-  myNextion.setComponentText("t21", String(calculus->mollierData.pvs));delay(50);
-  myNextion.setComponentText("t22", String(calculus->mollierData.dvt));delay(50);
-  myNextion.setComponentText("t23", String(calculus->mollierData.HR));delay(50);
-  myNextion.setComponentText("t24", String(calculus->mollierData.HA));delay(50);
-  myNextion.setComponentText("t32", String(calculus->mollierData.DEW));delay(50);
-  myNextion.setComponentText("t31", String(calculus->mollierData.DVA));delay(50);
-  myNextion.setComponentText("t30", String(calculus->mollierData.HE));delay(50);
-  myNextion.setComponentText("t29", String(co2Level));//delay(50);
+  myNextion.setComponentText("t10", String(averageTemperature));delay(25);
+  myNextion.setComponentText("t11", String(externalTemperature));delay(25);
+  myNextion.setComponentText("t12", String(externalHumidity));delay(25);
+  myNextion.setComponentText("t13", String(mollierSensors[0]));delay(25);
+  myNextion.setComponentText("t14", String(calculus->mollierData.HR));delay(25);
+  myNextion.setComponentText("t20", String(calculus->mollierData.pva));delay(25);
+  myNextion.setComponentText("t21", String(calculus->mollierData.pvs));delay(25);
+  myNextion.setComponentText("t22", String(calculus->mollierData.dvt));delay(25);
+  myNextion.setComponentText("t23", String(calculus->mollierData.HR));delay(25);
+  myNextion.setComponentText("t24", String(calculus->mollierData.HA));delay(25);
+  myNextion.setComponentText("t32", String(calculus->mollierData.DEW));delay(25);
+  myNextion.setComponentText("t31", String(calculus->mollierData.DVA));delay(25);
+  myNextion.setComponentText("t30", String(calculus->mollierData.HE));delay(25);
+  myNextion.setComponentText("t29", String(co2Level));delay(25);
 }//end updatePage0
 
 void updatePage1(void){
@@ -584,23 +680,57 @@ float Lco2, Hco2, Lhumidity, Hhumidity;
 */
   
   if(systemPhase == CONTROL_INCUB_1){
-	  motorSpeed = incubationPhase1(averageTemperature, 24, 27, mollierSensors[0], externalTemperature);
+    if(controlState == 0){
+      Ltemp = 24;
+      Htemp = 27;
+    }//end if
+	  motorSpeed = incubationPhase1(averageTemperature, Ltemp, Htemp, mollierSensors[0], externalTemperature);
 	  //Serial.println("INCUBACION 1");
 	  pastState = "incubacion 1";
   }else if(systemPhase == CONTROL_INCUB_2){
-	  motorSpeed =  incubationPhase2(averageTemperature, 25.0, 27.0, externalTemperature, mollierSensors[0], co2Level, 3500, 10000, externalHumidity, calculus->mollierData.HR, 99, 100, 24);
+    if(controlState == 0){
+      Ltemp = 25;
+      Htemp = 27;
+      Lco2 = 3500;
+      Hco2 = 10000;
+      Lhumidity = 99;
+      Hhumidity = 100;
+    }//end if    
+	  motorSpeed =  incubationPhase2(averageTemperature, Ltemp, Htemp, externalTemperature, mollierSensors[0], co2Level, Lco2, Hco2, externalHumidity, calculus->mollierData.HR, Lhumidity, Hhumidity, 24);
 	  //Serial.println("INCUBACION 2");
 	  pastState = "incubacion 2";
   }else if(systemPhase == CONTROL_INDUCTION){
-	  motorSpeed =  induction(averageTemperature, 19, 20, externalTemperature, mollierSensors[0], co2Level, 1200, 3500, externalHumidity, calculus->mollierData.HR, 88, 91, 24);
+    if(controlState == 0){
+      Ltemp = 19;
+      Htemp = 20;
+      Lco2 = 1200;
+      Hco2 = 3500;
+      Lhumidity = 88;
+      Hhumidity = 91;
+    }//end if       
+	  motorSpeed =  induction(averageTemperature, Ltemp, Htemp, externalTemperature, mollierSensors[0], co2Level, Lco2, Hco2, externalHumidity, calculus->mollierData.HR, Lhumidity, Hhumidity, 24);
 	  //Serial.println("INDUCCION");
 	  pastState = "induccion";
   }else if(systemPhase == CONTROL_GROWTH_1){
-	  mSpeed = startGrowth(averageTemperature, 19, 20, externalTemperature, mollierSensors[0], co2Level, 1200, 1600, externalHumidity, calculus->mollierData.HR, 87, 90, 24);
+    if(controlState == 0){
+      Ltemp = 19;
+      Htemp = 20;
+      Lco2 = 1200;
+      Hco2 = 1600;
+      Lhumidity = 87;
+      Hhumidity = 90;
+    }//end if     
+	  mSpeed = startGrowth(averageTemperature, Ltemp, Htemp, externalTemperature, mollierSensors[0], co2Level, Lco2, Hco2, externalHumidity, calculus->mollierData.HR, Lhumidity, Hhumidity, 24);
 	  //Serial.println("CRECIMIENTO 1");
 	  pastState = "crecimiento 1";
   }else if(systemPhase == CONTROL_GROWTH_2){
-	  motorSpeed = growth(averageTemperature, 19, 20, externalTemperature, mollierSensors[0], externalHumidity, calculus->mollierData.HR, 87, 89, 24);    
+    if(controlState == 0){
+      Ltemp = 19;
+      Htemp = 20;
+      Lhumidity = 87;
+      Hhumidity = 89;
+    }//end if       
+	  motorSpeed = growth(averageTemperature, Ltemp, Htemp, externalTemperature, mollierSensors[0], externalHumidity, calculus->mollierData.HR, Lhumidity, Hhumidity, 24);    
 	  //Serial.println("CRECIMIENTO 2");
 	  pastState = "crecimiento 2";
   }else if(systemPhase == CONTROL_SECADO){
@@ -615,13 +745,13 @@ float Lco2, Hco2, Lhumidity, Hhumidity;
 void updatePage2(void){
   if(manualRelay == RELAY_COLD_WATER){//systemPhase == CONTROL_INCUB_1
     if(coldWater){
-      Serial.println("Agua fria On");
+      //Serial.println("Agua fria On");
       digitalWrite(relays.aguaFriaOn, HIGH);
       digitalWrite(relays.aguaFriaOff, LOW);
       myNextion.setComponentText("b0", "Agua Fria ON");
       coldWater = false;
     }else{
-      Serial.println("Agua fria off");
+      //Serial.println("Agua fria off");
       digitalWrite(relays.aguaFriaOn, LOW);
       digitalWrite(relays.aguaFriaOff, HIGH);
       myNextion.setComponentText("b0", "Agua Fria OFF");
@@ -629,13 +759,13 @@ void updatePage2(void){
     }//end if
   }else if(manualRelay == RELAY_HOT_WATER){
     if(hotWater){
-      Serial.println("Agua Caliente On");
+      //Serial.println("Agua Caliente On");
       digitalWrite(relays.aguaCalienteOn, HIGH);
       digitalWrite(relays.aguaCalienteOff, LOW);
       myNextion.setComponentText("b1", "Agua Caliente ON");
       hotWater = false;
     }else{
-      Serial.println("Agua Caliente off");
+      //Serial.println("Agua Caliente off");
       digitalWrite(relays.aguaCalienteOn, LOW);
       digitalWrite(relays.aguaCalienteOff, HIGH);
       myNextion.setComponentText("b1", "Agua Caliente OFF");
@@ -674,7 +804,7 @@ void updateSecado(void){
   }
   unsigned long dryingStopT = millis();
   dryingTotalT = (dryingStartT-dryingStopT)*1000*60;//Time in minutes
-  Serial.println(dryingTotalT);
+  //Serial.println(dryingTotalT);
   //si humedad <= 88% cambiar a caso 1
   if(calculus->mollierData.HR <= 0.88){
   	controlState = 0;
@@ -687,8 +817,8 @@ void eepromBack(){
   String page = "page " + String(actualPage);
   myNextion.sendCommand(page.c_str());
 
-  if(Lhumidity != 0)
-    Lhumidity = EEPROM.read(1);
+  //if(Lhumidity != 0)
+  //  Lhumidity = EEPROM.read(1);
 /*	if(Hhumidity != 0)
     Hhumidity = EEPROM.read(2);
 	if(Ltemp != 0)
@@ -708,13 +838,13 @@ void limits(void){
       Lhumidity++;
     }
     myNextion.setComponentText("t7", String(Lhumidity));
-	  EEPROM.write(1, Lhumidity);
+	  //EEPROM.write(1, Lhumidity);
   }else if(icomBtn == LIMITS_LOW_HL){
     if(Lhumidity > 0){
       Lhumidity--;  
     }
     myNextion.setComponentText("t7", String(Lhumidity));
-	  EEPROM.write(1, Lhumidity);
+	  //EEPROM.write(1, Lhumidity);
   }else if(icomBtn == LIMITS_HIGH_HP){
     if(Lhumidity <= Hhumidity){
       Hhumidity++;
@@ -722,7 +852,7 @@ void limits(void){
     myNextion.setComponentText("t8", String(Hhumidity));
 //	  EEPROM.write(2, Hhumidity);
   }else if(icomBtn == LIMITS_HIGH_HL){
-    if(Hhumidity > 0){
+    if((Hhumidity > 0)&&(Hhumidity >= Lhumidity)){
       Hhumidity--;
     }//end if
     myNextion.setComponentText("t8", String(Hhumidity));
@@ -740,13 +870,13 @@ void limits(void){
     myNextion.setComponentText("t9", String(Ltemp));
 //	  EEPROM.write(4, Ltemp);
   }else if(icomBtn == LIMITS_HIGH_TP){
-    if(Ltemp <= Htemp){
+    if((Ltemp <= Htemp)){
       Htemp++;
     }//end if
     myNextion.setComponentText("t10", String(Htemp));
 //	  EEPROM.write(6, Htemp);
   }else if(icomBtn == LIMITS_HIGH_TL){
-    if(Htemp > 0){
+    if((Htemp > 0)&&(Htemp >= Ltemp)){
       Htemp--;
     }//end if
     myNextion.setComponentText("t10", String(Htemp));
@@ -758,7 +888,7 @@ void limits(void){
     myNextion.setComponentText("t14", String(Hco2));
 //	  EEPROM.write(8, Hco2);
   }else if(icomBtn == LIMITS_HIGH_CO2L){
-    if(Hco2 > 0){
+    if((Hco2 > 0)&&(Hco2 >= Lco2)){
       Hco2--;
     }//end if
     myNextion.setComponentText("t14", String(Hco2));

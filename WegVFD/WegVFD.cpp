@@ -49,7 +49,7 @@ WegVFD::WegVFD(HardwareSerial &rsSerial, uint32_t baud, uint8_t SSerialTxControl
 uint8_t WegVFD::setFrecuency(uint8_t hertz){
   this->hertz = hertz;
   byte speed[8] = {0x01, 0x06, 0x02, 0xAB, 0x00, 0x00, 0xF9, 0x92};//Default 0Hz
-  this->speedTwoHex(this->hertz, spdhex1, spdhex2);
+  this->speedtwoHex(this->hertz, spdhex1, spdhex2);
   speed[4] = this->spdhex1;
   speed[5] = this->spdhex2;
   this->CRC16(speed, 6, uchCRCLo, uchCRCHi);//Find CRC+ and CRC-
@@ -98,7 +98,43 @@ unsigned short WegVFD::CRC16(unsigned char *puchMsg, unsigned short usDataLen, u
   return (uchCRCHi << 8 | uchCRCLo);
 }//end CRC16
 
-uint8_t WegVFD::speedTwoHex(int mSpeed, int &hex1, int &hex2){
+uint8_t WegVFD::twoHex(float variable, int &hex1, int &hex2){
+  char temp[4] = {'0','0','0','0'};
+  String temp2;
+  String final[2] = {"", ""};
+
+  int velocidad = round(variable);
+  temp2 = String(velocidad, HEX);
+  
+  for(uint8_t i = 0; i<4; i++){
+    temp[3-i] = temp2[(temp2.length()-1)-i];
+  }//end for*/
+  
+  final[0] += String(temp[0])+String(temp[1]);
+  final[1] += String(temp[2])+String(temp[3]);
+
+  char const hex_chars[16] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
+
+  int hex_1 = 0;
+  int hex_2 = 0;
+  for(uint8_t k = 0; k < 2; k++){
+    for(uint8_t i = 0; i < final[k].length(); i++){
+      for(uint8_t j = 0; j < 16; j++){
+        if(final[k][i] == hex_chars[j]){
+          if(k == 0){
+            hex1 += round(j*pow(16, (final[k].length()-1)-i));
+          }else{
+            hex2 += round(j*pow(16, (final[k].length()-1)-i));
+          }//end if
+          break; 
+        }//end if
+      }//end for
+    }//end for
+  }//end for
+  return 1;  
+}//end speedTwoHex
+
+uint8_t WegVFD::speedtwoHex(int mSpeed, int &hex1, int &hex2){
   char temp[4] = {'0','0','0','0'};
   String temp2;
   String final[2] = {"", ""};
@@ -132,7 +168,8 @@ uint8_t WegVFD::speedTwoHex(int mSpeed, int &hex1, int &hex2){
     }//end for
   }//end for
   return 1;  
-}//end speedTwoHex
+}//end twoHex
+
 
 /*uint8_t WegVFD::speedControPHighTemp(double messuredValue, double minTemp, double setPoint, int minSpeed, int maxSpeed){
   int motorSpeed;
