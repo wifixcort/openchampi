@@ -61,7 +61,7 @@ void modBusInit(void){
   digitalWrite(SSerialTxControl, RS485Receive);  // Init Transceiver   
 }//end modBusInit
 
-void modBusSpeed(double mValue, int limitTemp, int setP, int lowSpeed, int highSpeed, boolean type){
+void modBusSpeed(float mValue, int limitTemp, int setP, int lowSpeed, int highSpeed, boolean type){
   void modBusInit();
   if(type){
     motorSpeed = cfw500->speedControPLowTemp(mValue, limitTemp, setP, lowSpeed, highSpeed);
@@ -259,7 +259,7 @@ int drying(int maxMotorFrecuency){//Frecuency in Hz
   return 1;
 }//end drying
 
-uint8_t speedControlPHighTemp(double messuredValue, double minTemp, double setPoint, int minSpeed, int maxSpeed){
+uint8_t speedControlPHighTemp(float messuredValue, float minTemp, float setPoint, int minSpeed, int maxSpeed){
   int motorSpeed;
 
   
@@ -274,7 +274,7 @@ uint8_t speedControlPHighTemp(double messuredValue, double minTemp, double setPo
   return motorSpeed;
 }//end speedControPHighTemp
 
-uint8_t speedControlPLowTemp(double messuredValue, double maxTemp, double setPoint, int minSpeed, int maxSpeed){
+uint8_t speedControlPLowTemp(float messuredValue, float maxTemp, float setPoint, int minSpeed, int maxSpeed){
   int motorSpeed;  
   if((messuredValue >= setPoint)&&(messuredValue <= maxTemp)){
     motorSpeed = map(messuredValue, setPoint, maxTemp, minSpeed, maxSpeed);

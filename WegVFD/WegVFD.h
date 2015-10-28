@@ -65,8 +65,8 @@ class WegVFD{
 		unsigned short CRC16(unsigned char *puchMsg, unsigned short usDataLen, unsigned char &uchCRCLo, unsigned char &uchCRCHi);
 		uint8_t speedtwoHex(int mSpeed, int &hex1, int &hex2);
 		uint8_t twoHex(float variable, int &hex1, int &hex2);
-		//		uint8_t speedControPHighTemp(double messuredValue, double minTemp, double setPoint, int minSpeed, int maxSpeed);
-		//		uint8_t speedControPLowTemp(double messuredValue, double maxTemp, double setPoint, int minSpeed, int maxSpeed);
+		//		uint8_t speedControPHighTemp(float messuredValue, float minTemp, float setPoint, int minSpeed, int maxSpeed);
+		//		uint8_t speedControPLowTemp(float messuredValue, float maxTemp, float setPoint, int minSpeed, int maxSpeed);
 };
 
 

@@ -43,32 +43,37 @@ Mollier::Mollier(uint8_t oneWireBus1, uint8_t oneWireBus2, uint8_t oneWireBus3, 
   this->oneWireTemps1 = new OneWire(this->oneWireBus1);
   this->oneWireTemps2 = new OneWire(this->oneWireBus2);
   this->oneWireTemps3 = new OneWire(this->oneWireBus3);
-  //  this->oneWireTemps4 = new OneWire(this->oneWireBus4);
+	//  this->oneWireTemps4 = new OneWire(this->oneWireBus4);
 
   this->tempSensors1 = new DallasTemperature(oneWireTemps1);
   this->tempSensors2 = new DallasTemperature(oneWireTemps2);
   this->tempSensors3 = new DallasTemperature(oneWireTemps3);
-  //  this->tempSensors4 = new DallasTemperature(oneWireTemps4);
+	//  this->tempSensors4 = new DallasTemperature(oneWireTemps4);
 
   tempSensors1->begin();
   tempSensors2->begin();
   tempSensors3->begin();
   //  tempSensors4->begin();
 
+  this->resolution = resolution;
   tempSensors1->setResolution(resolution);//Global resolution, default 9
   tempSensors2->setResolution(resolution);//Global resolution, default 9
   tempSensors3->setResolution(resolution);//Global resolution, default 9
   //  tempSensors4->setResolution(resolution);//Global resolution, default 9
+
+
+
 }//end Mollier
 
 boolean Mollier::requireParasite(void){
   //DallasTemperature library determine and handle if is necesary or no
-  if((tempSensors1->isParasitePowerMode())||(tempSensors2->isParasitePowerMode())||(tempSensors3->isParasitePowerMode())){
+  /*  if((tempSensors1->isParasitePowerMode())||(tempSensors2->isParasitePowerMode())||(tempSensors3->isParasitePowerMode())){
 	return true;
   }else{
 	return false;
-  }//end if
+  }//end if*/
 }//end requireParasite
+
     
 void Mollier::readSensorTemperatures(void){
   tempSensors1->requestTemperatures();// Send the command to get temperatures
@@ -79,7 +84,7 @@ void Mollier::readSensorTemperatures(void){
   for(uint8_t i = 0; i < 10; i++){
 	if(i < 4){//Temperatures in degress
 	  this->compostTemps[i] = tempSensors1->getTempCByIndex(i);//Compost temperatures
-	}else if(i < 7){
+	}else if(i < 8){
 	  this->compostTemps[i] = tempSensors2->getTempCByIndex(j);//Compost temperatures
 	  j++;
 	}else{
@@ -91,21 +96,21 @@ void Mollier::readSensorTemperatures(void){
 }//end readSensorTemperatures
 
 
-void Mollier::getCompostTemperatureSensors(double *compst){//cts means CompostTemperatureSensors
+void Mollier::getCompostTemperatureSensors(float *compst){//cts means CompostTemperatureSensors
   for(uint8_t i = 0; i < 8; i++){
 	compst[i] = compostTemps[i];
   }//end for
 }//end getCompostTemperatureSensors
     
-void Mollier::getMollierTemperatureSensors(double *compst){//mts means MollierTemperaturesSensors
+void Mollier::getMollierTemperatureSensors(float *compst){//mts means MollierTemperaturesSensors
   for(uint8_t i = 0; i < 2; i++){
 	compst[i] = mollierTemps[i];
   }//end for     
 }//end getMollierTemperaturesSensors
 
-double Mollier::compostSensorsAverage(void){
-  //  double average = 0;
-  double orderlyArray[8];
+float Mollier::compostSensorsAverage(void){
+  //  float average = 0;
+  float orderlyArray[8];
   for(uint8_t i = 0; i< 8; i++){
     orderlyArray[i] = compostTemps[i];
   }//end for
@@ -120,9 +125,10 @@ uint8_t Mollier::mollierCalculus(void){//struct mollierVariables &mollierData
   //if type = extern then position is 2 otherwise is 0
   //position = (type == "extern") ? 2 : 0;
     
- /* if (mollierTemps[1] > mollierTemps[0]){
+  if (mollierTemps[1] > mollierTemps[0]){
 	mollierTemps[1] = mollierTemps[0];
-  }else if (mollierTemps[1] < 0 || mollierTemps[0] < 0){
+  }
+  /* }else if (mollierTemps[1] < 0 || mollierTemps[0] < 0){
 	mollierTemps[1] = 0;
 	mollierTemps[0] = 0;
   }//end if*/
@@ -140,11 +146,11 @@ uint8_t Mollier::mollierCalculus(void){//struct mollierVariables &mollierData
   return 0;
 }//end mollierCalculus
 
-uint8_t Mollier::bubbleSort(double *array){
+uint8_t Mollier::bubbleSort(float *array){
   for (uint8_t i=1; i<8; i++){
 	for(uint8_t j=0 ; j<8 - 1; j++){
 	  if (array[j] > array[j+1]){
-		double temp = array[j];
+		float temp = array[j];
 		array[j] = array[j+1];
 		array[j+1] = temp;                   
 	  }//end if

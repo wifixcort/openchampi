@@ -41,7 +41,7 @@ http://crcibernetica.com
 
 void modBusInit(void);
 
-//void modBusSpeed(double mValue, int limitTemp, int setP, int lowSpeed, int highSpeed, boolean type);
+//void modBusSpeed(float mValue, int limitTemp, int setP, int lowSpeed, int highSpeed, boolean type);
 
 int incubationPhase1(float currentTemp, float lowerLimitTemp, float upperLimitTemp, float outsideTemp, float roomTemp, int maxMotorFrecuency = 40);
 
@@ -55,9 +55,9 @@ int growth(float currentTemp, float lowerLimitTemp, float upperLimitTemp, float 
 
 int drying(int maxMotorFrecuency=24);//Frecuency in Hz
 
-uint8_t speedControlPHighTemp(double messuredValue, double minTemp, double setPoint, int minSpeed, int maxSpeed);
+uint8_t speedControlPHighTemp(float messuredValue, float minTemp, float setPoint, int minSpeed, int maxSpeed);
 
-uint8_t speedControlPLowTemp(double messuredValue, double maxTemp, double setPoint, int minSpeed, int maxSpeed);
+uint8_t speedControlPLowTemp(float messuredValue, float maxTemp, float setPoint, int minSpeed, int maxSpeed);
 
 #endif /* __ROOMCONTROL_H__ */
 

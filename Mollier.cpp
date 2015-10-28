@@ -46,7 +46,7 @@ void Mollier::getMollierTemperaturesSensors(double *compst, uint8_t numSensors){
 double Mollier::compostSensorsAverage(void){
   double average = 0;
   for(uint8_t i = 0; i< 6; i++){
-	average += compstTemps[i];
+	average += compostTemps[i];
   }//end for
   average /= 6;
   return average;

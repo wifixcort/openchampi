@@ -57,34 +57,35 @@ class Mollier{
   DallasTemperature *tempSensors1;
   DallasTemperature *tempSensors2;
   DallasTemperature *tempSensors3;
-  //  DallasTemperature *tempSensors4;
+  DallasTemperature *tempSensors4;
 
-  double compostTemps[8];//Compost temperatures
-  double mollierTemps[2];
+  float compostTemps[8];//Compost temperatures
+  float mollierTemps[2];
   const float barometricPresure = 1013.25;//float barometricPresure = 1013.25;
   //mollierVariables mollierData;
+  uint8_t resolution;
 
-  uint8_t bubbleSort(double *array);
+  uint8_t bubbleSort(float *array);
 
  public:
   Mollier(){}//end Mollier
-  Mollier(uint8_t oneWireBus1, uint8_t oneWireBus2, uint8_t oneWireBus3, uint8_t resolution = 9);
+  Mollier(uint8_t oneWireBus1, uint8_t oneWireBus2, uint8_t oneWireBus3, uint8_t resolution = 4);
   
   struct mollierVariables{
-    double pva, pvs, dvt, HR, HA, DEW, DVA, HE;
+    float pva, pvs, dvt, HR, HA, DEW, DVA, HE;
   }mollierData;
   
   boolean requireParasite(void);
     
   void readSensorTemperatures(void);
 
-  void getCompostTemperatureSensors(double *compst);
+  void getCompostTemperatureSensors(float *compst);
     
-  void getMollierTemperatureSensors(double *compst);
+  void getMollierTemperatureSensors(float *compst);
     
   uint8_t mollierCalculus(void);//struct mollierVariables &mollierData
   
-  double compostSensorsAverage(void);
+  float compostSensorsAverage(void);
 };//end Mollier
 
 #endif

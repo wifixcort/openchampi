@@ -103,10 +103,11 @@ struct relaysModule{
 
 //---Class declarations---
 Mollier *calculus;//Created in heap
+//Mollier calculus(ONE_WIRE_BUS_1, ONE_WIRE_BUS_2, ONE_WIRE_BUS_3);
 MQ135 gasSensor(CO2SENSOR);
 //---temperatureChecker---
-double *compostSensors;
-double *mollierSensors;
+float *compostSensors;
+float *mollierSensors;
 //---Weg VFD---
 //WegVFD *cfw500;
 WegVFD cfw500(RS485Serial, 19200, SSerialTxControl);
@@ -120,6 +121,7 @@ Nextion myNextion(nextion, 9600); //create a Nextion object named myNextion usin
 //float M, relativeHumidity, absouleHumidity, specificHumidity, outdoorHumidity, absoluteHumidityOutside;//variable de HR 
 
 //----------------State Machines Variables-------------------
+unsigned long globalCurrentTime = 0;
 //actionRelayStartT,
 unsigned long co2PumpStartT, 
               co2SensorStartT, 
@@ -153,7 +155,7 @@ unsigned long dryingStartT, dryingTotalT;
 //---CO2 Level in the room---
 float co2Level = 0;
 
-double averageTemperature = 0;
+float averageTemperature = 0;
 float externalTemperature;//Standard
 float externalHumidity;//Just a # for debug
 
@@ -177,9 +179,10 @@ byte chillerAnswer[6] = {0x02, 0x06, 0x00, 0x00, 0x00, 0x00};
 //ID, MODIF, TEMP, HUMID, CRC-, CRC+
 
 //---RaspberryPi Modbus---
-byte piMsgBuff[31] = {0x03, 0x03, 26, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+//byte piMsgBuff[31] = {0x03, 0x03, 26, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 //ID, READ REGISTERS, COUNT, LoTEMP, HiTEMP, LoEXTtemp, HiEXTtemp, LoEXThum, HiEXThum, LoAMBtEMP, HiAMBtEMP, LoPVA, HiPVA, LoPVS, HiPVS, LoDVT, HiDVT, LoHR, HiHR, LoHA, HiHA, LoDEW, HiDEW, LoDVA, HiDVA, LoHE, HiHE, LoCO2, HiCO2, CRC-, CRC+
-//ID, READ REGISTERS, COUNT, TEMP, EXTtemp, EXThum, AMBtEMP, PVA, PVS, DVT, HR, HA, DEW, DVA, HE, CO2
+byte piMsgBuff[19] = {0x03, 0x03, 26, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+//ID, READ REGISTERS, COUNT, TEMP, EXTtemp, EXThum, AMBtEMP, PVA, PVS, DVT, HR, HA, DEW, DVA, HE, LoCO2, HiCO2
 
 //---Screen---
 char pageId[6] = {0x30, 0x31, 0x32, 0x33, 0x34, 0x35};
@@ -198,9 +201,9 @@ float Lco2, Hco2, Lhumidity, Hhumidity;
 
 void setup() {
 
-Serial.begin(19200);
-Serial.println("Starting OpenChampi Automatization Control...");
-Serial.flush();
+  Serial.begin(19200);
+  Serial.println("Starting OpenChampi Automatization Control...");
+  Serial.flush();
 
 
   //Set all relay pins in a few rows posible as outputs
@@ -213,14 +216,14 @@ Serial.flush();
     pinMode(i, INPUT_PULLUP);
   }//end for
   myNextion.init();
-  compostSensors = new double[8];
-  mollierSensors = new double[2];
+  compostSensors = new float[8];
+  mollierSensors = new float[2];
   calculus = new Mollier(ONE_WIRE_BUS_1, ONE_WIRE_BUS_2, ONE_WIRE_BUS_3);
-  //gasSensor = new MQ135(CO2SENSOR);
+//  gasSensor = new MQ135(CO2SENSOR);
   
   //actionRelayIntervalT *= 45;//45 seconds
   co2PumpIntervalT *= 60*30;//Every 30 minutes
-  checkerIntervalT *= 60*0.25;//Every 5 minutes
+  checkerIntervalT *= 60*0.25;//Every 5 minutes  
 
   modIntervalT *= 3;//Weg interval
   chModInterval *= 7;//Chiller interval
@@ -235,17 +238,18 @@ Serial.flush();
   //cfw500 = new WegVFD(RS485Serial, 19200, SSerialTxControl);
   pinMode(SSerialTxControl, OUTPUT);
   digitalWrite(SSerialTxControl, RS485Receive);  // Init Transceiver    
-  eepromBack();
+  //eepromBack();
 }//setup
 
 void loop() {
   serialEvent1();
   serialEvent2();
   if(actualPage == 0){
+    globalCurrentTime = millis();
     unsigned long  page0CurrentT = millis();
-    if(page0CurrentT - page0StartT > page0IntervalT){
+    if(globalCurrentTime - page0StartT > page0IntervalT){
       updatePage0();
-      page0StartT = page0CurrentT;
+      page0StartT = globalCurrentTime;
     }//end if
   }else if(actualPage == 1){//
     if(actualState != pastState){
@@ -253,8 +257,6 @@ void loop() {
       myNextion.setComponentText("t6", actualState);//String(actualState)
     }//end if
   }//end if
-  
-  unsigned long globalCurrentTime = 0;
   
   //automatic update temperatures readings and Moliere calculus
   globalCurrentTime = millis();
@@ -339,8 +341,10 @@ void loop() {
 
   globalCurrentTime = millis();//Update current time
   if((globalCurrentTime - modStartT) > modIntervalT){
+    
     modBusSpeed(averageTemperature, motorSpeed);
     modStartT = globalCurrentTime;
+    
   }//end if
   globalCurrentTime = millis();//Update current time
   if((globalCurrentTime - chModStart) > chModInterval){
@@ -351,31 +355,35 @@ void loop() {
         }//end if
         Serial.println();
       #endif
-    modBusChiller(2, 1, digitalRead(relays.aguaFriaOn), digitalRead(relays.aguaCalienteOn));
+     modBusChiller(2, 1, digitalRead(relays.aguaFriaOn), digitalRead(relays.aguaCalienteOn));
     chModStart = globalCurrentTime;
   }//end if
 
   globalCurrentTime = millis();//Update current time
   if((globalCurrentTime - piModStartT) > piModIntervalT){
-    //Serial.println("Sendig Report to Raspberry Pi");
+    Serial.println("Sendig Report to Raspberry Pi");
     modBusPi(3);
     piModStartT = globalCurrentTime;
   }//end if
 
-  
 }//end loop
 
-#if defined(DEBUG)
-  int freeRam (){
+void allFlush(){
+  Serial.flush();
+  nextion.flush();  
+}
+
+//#if defined(DEBUG)
+  int freeRam(){
     extern int __heap_start, *__brkval; 
     int v; 
     return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval); 
   }
-#endif
+//#endif
 
 int co2Pump(unsigned long co2PumpCurrenTime){
   //Start suck out 45s before read CO2 level
-  const unsigned int timeBefore = 1000*45;
+  uint16_t timeBefore = 1000*45;
   //  Serial.println(timeBefore);
   if((co2PumpCurrenTime - co2PumpStartT) > (co2PumpIntervalT-timeBefore)){
 #if defined(DEBUG)
@@ -401,13 +409,12 @@ int co2Pump(unsigned long co2PumpCurrenTime){
   return 1;
 }//end co2Pump
 
-int temperatureChecker(unsigned long checkerCurrentTime){
+int temperatureChecker(unsigned long checkerCurrentTime){ 
   if(checkerCurrentTime - checkerStartT > checkerIntervalT){
 #if defined(DEBUG)
 	Serial.println("Reading temperature Sensors");
 #endif
     calculus->readSensorTemperatures();
-    
     calculus->getCompostTemperatureSensors(compostSensors);
     calculus->getMollierTemperatureSensors(mollierSensors);
 #if defined(DEBUG)    
@@ -423,13 +430,7 @@ int temperatureChecker(unsigned long checkerCurrentTime){
 	}//end for
 #endif
 
-    //---Temperature average in compost sensors---
-    double tempTemp = calculus->compostSensorsAverage();
-    if(tempTemp > 0){
-      averageTemperature = tempTemp;
-    }else{
-	  //alarm  
-    }
+  averageTemperature = calculus->compostSensorsAverage();
     
 #if defined(DEBUG)
 	Serial.println("Compost average temperature  = " + String(averageTemperature));
@@ -479,16 +480,15 @@ void serialEvent1(){
 void serialEvent2(){
   incommingMsg = myNextion.listen(); //check for message
   if((incommingMsg != "")&&(incommingMsg.length() == 1)){ // if a message is received...
-    char pageId[6] = {0x30, 0x31, 0x32, 0x33, 0x34, 0x35};
     for(i = 0; i< 6; i++){
       if(pageId[i] == incommingMsg[0]){
         actualPage = i;
         EEPROM.write(0, i);//Save page
 //        #if defined(DEBU2)
-          Serial.print("msg = ");
-          Serial.print(incommingMsg);
-          Serial.print(", pagina = ");
-          Serial.println(actualPage); 
+//          Serial.print("msg = ");
+//          Serial.print(incommingMsg);
+//          Serial.print(", pagina = ");
+//          Serial.println(actualPage); 
 //        #endif
         break;
       }//end if
@@ -516,7 +516,7 @@ void modBusPi(byte id){
   spdhex1 = spdhex2 = 0;
 
   uint8_t j = 0;
-  //piMsgBuff[0] = id;
+  piMsgBuff[0] = id;
   cfw500.twoHex(averageTemperature, spdhex1, spdhex2);
   piMsgBuff[3] = spdhex1;
   piMsgBuff[4] = spdhex2;
@@ -561,7 +561,7 @@ void modBusPi(byte id){
   piMsgBuff[23] = spdhex1;
   piMsgBuff[24] = spdhex2;
   spdhex1 = spdhex2 = 0;
-  cfw500.twoHex(calculus->mollierData.HE, spdhex1, spdhex2);
+  cfw500.twoHex(calculus->mollierData.HE, spdhex1, spdhex2);//HE
   piMsgBuff[25] = spdhex1;
   piMsgBuff[26] = spdhex2;
   spdhex1 = spdhex2 = 0;
@@ -586,6 +586,11 @@ void modBusPi(byte id){
   cfw500.disableTransmit();
   digitalWrite(pin13Led, LOW);  // Show activity
 
+  for(i = 0; i < 31; i++){
+//    piMsgBuff[i] = 0;
+  }
+  
+  allFlush();
 }//end modBusPi
 
 void modBusChiller(byte id, byte idRoom, byte cWaterOn, byte hWaterOn){
@@ -608,13 +613,19 @@ void modBusChiller(byte id, byte idRoom, byte cWaterOn, byte hWaterOn){
   
   cfw500.disableTransmit();
   digitalWrite(pin13Led, LOW);  // Show activity
+
+  for(i = 0; i < 7; i++){
+    chillerBuff[i] = 0;
+  }
+  allFlush();
 }//end modBusChiller
 
 void modBusSpeed(float mValue, uint8_t speed){
-    //Serial.print("Temp = ");
-    //Serial.print(mValue);
-    //Serial.print("--MSpeed = ");
-    //Serial.println(speed);
+  //String sped = "Temp = ";
+  //sped += String(mValue);
+  //sped += "--MSpeed = ";
+  //sped += String(speed);
+  //Serial.println(sped);
   cfw500.speedtwoHex(speed, spdhex1, spdhex2);
   buff[4] = spdhex1;
   buff[5] = spdhex2;
@@ -629,12 +640,15 @@ void modBusSpeed(float mValue, uint8_t speed){
 
   delay(5);
   RS485Serial.write(buff, 8);
-  delay(5);
-  
+  delay(5);  
   cfw500.disableTransmit();
 
   digitalWrite(pin13Led, LOW);  // Show activity 
 
+  for(i = 0; i < 8; i++){
+    buff[i] = 0;
+  }
+  allFlush();
   //while-----...
 #if defined(DEBUG) 
   Serial.println("");
@@ -662,6 +676,7 @@ void updatePage0(void){
   myNextion.setComponentText("t31", String(calculus->mollierData.DVA));delay(25);
   myNextion.setComponentText("t30", String(calculus->mollierData.HE));delay(25);
   myNextion.setComponentText("t29", String(co2Level));delay(25);
+  
 }//end updatePage0
 
 void updatePage1(void){

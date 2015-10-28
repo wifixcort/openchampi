@@ -171,7 +171,7 @@ uint8_t WegVFD::speedtwoHex(int mSpeed, int &hex1, int &hex2){
 }//end twoHex
 
 
-/*uint8_t WegVFD::speedControPHighTemp(double messuredValue, double minTemp, double setPoint, int minSpeed, int maxSpeed){
+/*uint8_t WegVFD::speedControPHighTemp(float messuredValue, float minTemp, float setPoint, int minSpeed, int maxSpeed){
   int motorSpeed;
 
   
@@ -186,7 +186,7 @@ uint8_t WegVFD::speedtwoHex(int mSpeed, int &hex1, int &hex2){
   return motorSpeed;
 }//end speedControPHighTemp
 
-uint8_t WegVFD::speedControPLowTemp(double messuredValue, double maxTemp, double setPoint, int minSpeed, int maxSpeed){
+uint8_t WegVFD::speedControPLowTemp(float messuredValue, float maxTemp, float setPoint, int minSpeed, int maxSpeed){
   int motorSpeed;  
   if((messuredValue >= setPoint)&&(messuredValue <= maxTemp)){
     motorSpeed = map(messuredValue, setPoint, maxTemp, minSpeed, maxSpeed);
