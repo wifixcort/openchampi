@@ -181,8 +181,8 @@ byte chillerAnswer[6] = {0x02, 0x06, 0x00, 0x00, 0x00, 0x00};
 //---RaspberryPi Modbus---
 //byte piMsgBuff[31] = {0x03, 0x03, 26, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 //ID, READ REGISTERS, COUNT, LoTEMP, HiTEMP, LoEXTtemp, HiEXTtemp, LoEXThum, HiEXThum, LoAMBtEMP, HiAMBtEMP, LoPVA, HiPVA, LoPVS, HiPVS, LoDVT, HiDVT, LoHR, HiHR, LoHA, HiHA, LoDEW, HiDEW, LoDVA, HiDVA, LoHE, HiHE, LoCO2, HiCO2, CRC-, CRC+
-byte piMsgBuff[19] = {0x03, 0x03, 14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-//ID, READ REGISTERS, COUNT, TEMP, EXTtemp, EXThum, AMBtEMP, PVA, PVS, DVT, HR, HA, DEW, DVA, HE, LoCO2, HiCO2, CRC-, CRC+
+byte piMsgBuff[20] = {0x03, 0x03, 15, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+//ID, READ REGISTERS, COUNT, ROOM_ID, TEMP, EXTtemp, EXThum, AMBtEMP, PVA, PVS, DVT, HR, HA, DEW, DVA, HE, LoCO2, HiCO2, CRC-, CRC+
 
 //---Screen---
 char pageId[6] = {0x30, 0x31, 0x32, 0x33, 0x34, 0x35};
@@ -363,7 +363,7 @@ void loop() {
   globalCurrentTime = millis();//Update current time
   if((globalCurrentTime - piModStartT) > piModIntervalT){
     //Serial.println("Sendig Report to Raspberry Pi");
-    modBusPi(3);
+    modBusPi(3, 1);
     piModStartT = globalCurrentTime;
   }//end if
 
@@ -511,47 +511,46 @@ void serialEvent2(){
   }//end if
 }//end serialEvent2
 
-void modBusPi(byte id){
-//ID, READ REGISTERS, COUNT, LoTEMP, HiTEMP, LoEXTtemp, HiEXTtemp, LoEXThum, HiEXThum, LoAMBtEMP, HiAMBtEMP, LoPVA, HiPVA, LoPVS, HiPVS, LoDVT, HiDVT, LoHR, HiHR, LoHA, HiHA, LoDEW, HiDEW, LoDVA, HiDVA, LoHE, HiHE, LoCO2, HiCO2, CRC-, CRC+
-//cfw500->twoHex(speed, spdhex1, spdhex2);
+void modBusPi(byte id, byte roomId){
   spdhex1 = spdhex2 = 0;
-//ID, READ REGISTERS, COUNT, TEMP, EXTtemp, EXThum, AMBtEMP, PVA, PVS, DVT, HR, HA, DEW, DVA, HE, LoCO2, HiCO2, CRC-, CRC+
+//ID, READ_REGISTERS, COUNT, ROM_ID,TEMP, EXTtemp, EXThum, AMBtEMP, PVA, PVS, DVT, HR, HA, DEW, DVA, HE, LoCO2, HiCO2, CRC-, CRC+
   uint8_t j = 0;
   piMsgBuff[0] = id;
-  piMsgBuff[3] = round(averageTemperature);
-  piMsgBuff[4] = round(externalTemperature);
-  piMsgBuff[5] = round(externalHumidity);
-  piMsgBuff[6] = round(mollierSensors[0]);
-  piMsgBuff[7] = round(calculus->mollierData.pva);
-  piMsgBuff[8] = round(calculus->mollierData.pvs);
-  piMsgBuff[9] = round(calculus->mollierData.dvt);
-  piMsgBuff[10] = round(calculus->mollierData.HR);
-  piMsgBuff[11] = round(calculus->mollierData.HA);
-  piMsgBuff[12] = round(calculus->mollierData.DEW);
-  piMsgBuff[13] = round(calculus->mollierData.DVA);
-  piMsgBuff[14] = round(calculus->mollierData.HE);
+  piMsgBuff[3] = roomId;
+  piMsgBuff[4] = round(averageTemperature);
+  piMsgBuff[5] = round(externalTemperature);
+  piMsgBuff[6] = round(externalHumidity);
+  piMsgBuff[7] = round(mollierSensors[0]);
+  piMsgBuff[8] = round(calculus->mollierData.pva);
+  piMsgBuff[9] = round(calculus->mollierData.pvs);
+  piMsgBuff[10] = round(calculus->mollierData.dvt);
+  piMsgBuff[11] = round(calculus->mollierData.HR);
+  piMsgBuff[12] = round(calculus->mollierData.HA);
+  piMsgBuff[13] = round(calculus->mollierData.DEW);
+  piMsgBuff[14] = round(calculus->mollierData.DVA);
+  piMsgBuff[15] = round(calculus->mollierData.HE);
   cfw500.twoHex(co2Level, spdhex1, spdhex2);
-  piMsgBuff[15] = spdhex1;
-  piMsgBuff[16] = spdhex2;
+  piMsgBuff[16] = spdhex1;
+  piMsgBuff[17] = spdhex2;
   spdhex1 = spdhex2 = 0;
-  cfw500.CRC16(piMsgBuff, 17, uchCRCLo, uchCRCHi);
-  piMsgBuff[17] = uchCRCLo;
-  piMsgBuff[18] = uchCRCHi;
-//  for(i = 0; i < 31; i++){
-//    Serial.print(piMsgBuff[i]);  
-//    Serial.print("-");
-//  }
-//  Serial.println();
+  cfw500.CRC16(piMsgBuff, 18, uchCRCLo, uchCRCHi);
+  piMsgBuff[18] = uchCRCLo;
+  piMsgBuff[19] = uchCRCHi;
+  for(i = 0; i < 20; i++){
+    Serial.print(piMsgBuff[i]);  
+    Serial.print("-");
+  }
+  Serial.println();
   
   digitalWrite(pin13Led, HIGH);  // Show activity
   cfw500.enableTransmit();
   delay(21);
-  RS485Serial.write(piMsgBuff, 19);
+  RS485Serial.write(piMsgBuff, 20);
   delay(21); 
   cfw500.disableTransmit();
   digitalWrite(pin13Led, LOW);  // Show activity
 
-  for(i = 0; i < 31; i++){
+  for(i = 0; i < 20; i++){
 //    piMsgBuff[i] = 0;
   }
   
