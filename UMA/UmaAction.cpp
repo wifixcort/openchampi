@@ -39,19 +39,25 @@ umaRelay relay;
 uint8_t temperatureIncrease(boolean incubation){
   if(incubation){
 	//Stop water cooling
-	digitalWrite(relay.coldWaterOn, LOW);
+	if(digitalRead(relay.coldWaterOn)){
+	  digitalWrite(relay.coldWaterOn, LOW);
+	}//end if
 	if(!digitalRead(relay.coldWaterOff)){//If coldWater relay is HIGH don't do this again
 	  digitalWrite(relay.coldWaterOff, HIGH);	
 	}//end if
 	//TODO decrease vfd speed
   }else{
 	//Stop water cooling
+	if(digitalRead(relay.coldWaterOn)){
 	digitalWrite(relay.coldWaterOn, LOW);
+	}//end if
 	if(!digitalRead(relay.coldWaterOff)){
 	  digitalWrite(relay.coldWaterOff, HIGH);
 	}//end if
 	//Start heating water
-	digitalWrite(relay.hotWaterOff, LOW);
+	if(digitalRead(relay.hotWaterOff)){
+	  digitalWrite(relay.hotWaterOff, LOW);
+	}//end if
 	if(!digitalRead(relay.hotWaterOn)){
 	  digitalWrite(relay.hotWaterOn, HIGH);	
 	}//end if
@@ -61,12 +67,16 @@ uint8_t temperatureIncrease(boolean incubation){
 
 uint8_t temperatureDecrease(boolean incubation){
   //Stop heating water
-  digitalWrite(relay.hotWaterOn, LOW);
+  if(digitalRead(relay.hotWaterOn)){
+	digitalWrite(relay.hotWaterOn, LOW);
+  }
   if(!digitalRead(relay.hotWaterOff)){
 	digitalWrite(relay.hotWaterOff, HIGH);
   }//end if
   //Start water cooling
-  digitalWrite(relay.coldWaterOff, LOW);
+  if(digitalRead(relay.coldWaterOff)){
+    digitalWrite(relay.coldWaterOff, LOW);
+  }//end if
   if(!digitalRead(relay.coldWaterOn)){
 	digitalWrite(relay.coldWaterOn, HIGH);
   }//end if
@@ -75,8 +85,14 @@ uint8_t temperatureDecrease(boolean incubation){
 
 uint8_t temperatureCloseValves(void){
   //Close heat and cold valves
-  digitalWrite(relay.coldWaterOn, LOW);
-  digitalWrite(relay.hotWaterOn, LOW);
+
+  if(digitalRead(relay.coldWaterOn)){
+	digitalWrite(relay.coldWaterOn, LOW);
+  }//end if
+  if(digitalRead(relay.hotWaterOn)){
+	digitalWrite(relay.hotWaterOn, LOW);
+  }//end if  
+
   if(!digitalRead(relay.coldWaterOff)){
 	digitalWrite(relay.coldWaterOff, HIGH);
   }//end if
@@ -122,7 +138,9 @@ uint8_t damperOpen(void){
 }//end damperOpen
 
 uint8_t damperClose(void){
+  if(digitalRead(relay.damper)){
   digitalWrite(relay.damper, LOW);
+  }//end if
 }//end damperClose
 
 
@@ -134,5 +152,7 @@ uint8_t alarmOn(void){
 }//end alarmOn
 
 void alarmOff(void){
-  digitalWrite(relay.alarm, LOW);
+  if(digitalRead(relay.alarm)){
+	digitalWrite(relay.alarm, LOW);
+  }//end if
 }//end alarmOff

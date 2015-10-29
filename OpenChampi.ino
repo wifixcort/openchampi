@@ -181,8 +181,8 @@ byte chillerAnswer[6] = {0x02, 0x06, 0x00, 0x00, 0x00, 0x00};
 //---RaspberryPi Modbus---
 //byte piMsgBuff[31] = {0x03, 0x03, 26, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 //ID, READ REGISTERS, COUNT, LoTEMP, HiTEMP, LoEXTtemp, HiEXTtemp, LoEXThum, HiEXThum, LoAMBtEMP, HiAMBtEMP, LoPVA, HiPVA, LoPVS, HiPVS, LoDVT, HiDVT, LoHR, HiHR, LoHA, HiHA, LoDEW, HiDEW, LoDVA, HiDVA, LoHE, HiHE, LoCO2, HiCO2, CRC-, CRC+
-byte piMsgBuff[19] = {0x03, 0x03, 26, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-//ID, READ REGISTERS, COUNT, TEMP, EXTtemp, EXThum, AMBtEMP, PVA, PVS, DVT, HR, HA, DEW, DVA, HE, LoCO2, HiCO2
+byte piMsgBuff[19] = {0x03, 0x03, 14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+//ID, READ REGISTERS, COUNT, TEMP, EXTtemp, EXThum, AMBtEMP, PVA, PVS, DVT, HR, HA, DEW, DVA, HE, LoCO2, HiCO2, CRC-, CRC+
 
 //---Screen---
 char pageId[6] = {0x30, 0x31, 0x32, 0x33, 0x34, 0x35};
@@ -238,7 +238,9 @@ void setup() {
   //cfw500 = new WegVFD(RS485Serial, 19200, SSerialTxControl);
   pinMode(SSerialTxControl, OUTPUT);
   digitalWrite(SSerialTxControl, RS485Receive);  // Init Transceiver    
-  //eepromBack();
+  globalCurrentTime = millis();
+  co2Pump(globalCurrentTime);
+  eepromBack();
 }//setup
 
 void loop() {
@@ -341,7 +343,6 @@ void loop() {
 
   globalCurrentTime = millis();//Update current time
   if((globalCurrentTime - modStartT) > modIntervalT){
-    
     modBusSpeed(averageTemperature, motorSpeed);
     modStartT = globalCurrentTime;
     
@@ -361,7 +362,7 @@ void loop() {
 
   globalCurrentTime = millis();//Update current time
   if((globalCurrentTime - piModStartT) > piModIntervalT){
-    Serial.println("Sendig Report to Raspberry Pi");
+    //Serial.println("Sendig Report to Raspberry Pi");
     modBusPi(3);
     piModStartT = globalCurrentTime;
   }//end if
@@ -514,64 +515,28 @@ void modBusPi(byte id){
 //ID, READ REGISTERS, COUNT, LoTEMP, HiTEMP, LoEXTtemp, HiEXTtemp, LoEXThum, HiEXThum, LoAMBtEMP, HiAMBtEMP, LoPVA, HiPVA, LoPVS, HiPVS, LoDVT, HiDVT, LoHR, HiHR, LoHA, HiHA, LoDEW, HiDEW, LoDVA, HiDVA, LoHE, HiHE, LoCO2, HiCO2, CRC-, CRC+
 //cfw500->twoHex(speed, spdhex1, spdhex2);
   spdhex1 = spdhex2 = 0;
-
+//ID, READ REGISTERS, COUNT, TEMP, EXTtemp, EXThum, AMBtEMP, PVA, PVS, DVT, HR, HA, DEW, DVA, HE, LoCO2, HiCO2, CRC-, CRC+
   uint8_t j = 0;
   piMsgBuff[0] = id;
-  cfw500.twoHex(averageTemperature, spdhex1, spdhex2);
-  piMsgBuff[3] = spdhex1;
-  piMsgBuff[4] = spdhex2;
-  spdhex1 = spdhex2 = 0;
-  cfw500.twoHex(externalTemperature, spdhex1, spdhex2);
-  piMsgBuff[5] = spdhex1;
-  piMsgBuff[6] = spdhex2;
-  spdhex1 = spdhex2 = 0;
-  cfw500.twoHex(externalHumidity, spdhex1, spdhex2);
-  piMsgBuff[7] = spdhex1;
-  piMsgBuff[8] = spdhex2;
-  spdhex1 = spdhex2 = 0;
-  cfw500.twoHex(mollierSensors[0], spdhex1, spdhex2);
-  piMsgBuff[9] = spdhex1;
-  piMsgBuff[10] = spdhex2;
-  spdhex1 = spdhex2 = 0;
-  cfw500.twoHex(calculus->mollierData.pva, spdhex1, spdhex2);
-  piMsgBuff[11] = spdhex1;
-  piMsgBuff[12] = spdhex2;
-  spdhex1 = spdhex2 = 0;
-  cfw500.twoHex(calculus->mollierData.pvs, spdhex1, spdhex2);
-  piMsgBuff[13] = spdhex1;
-  piMsgBuff[14] = spdhex2;
-  spdhex1 = spdhex2 = 0;
-  cfw500.twoHex(calculus->mollierData.dvt, spdhex1, spdhex2);
+  piMsgBuff[3] = round(averageTemperature);
+  piMsgBuff[4] = round(externalTemperature);
+  piMsgBuff[5] = round(externalHumidity);
+  piMsgBuff[6] = round(mollierSensors[0]);
+  piMsgBuff[7] = round(calculus->mollierData.pva);
+  piMsgBuff[8] = round(calculus->mollierData.pvs);
+  piMsgBuff[9] = round(calculus->mollierData.dvt);
+  piMsgBuff[10] = round(calculus->mollierData.HR);
+  piMsgBuff[11] = round(calculus->mollierData.HA);
+  piMsgBuff[12] = round(calculus->mollierData.DEW);
+  piMsgBuff[13] = round(calculus->mollierData.DVA);
+  piMsgBuff[14] = round(calculus->mollierData.HE);
+  cfw500.twoHex(co2Level, spdhex1, spdhex2);
   piMsgBuff[15] = spdhex1;
   piMsgBuff[16] = spdhex2;
   spdhex1 = spdhex2 = 0;
-  cfw500.twoHex(calculus->mollierData.HR, spdhex1, spdhex2);
-  piMsgBuff[17] = spdhex1;
-  piMsgBuff[18] = spdhex2;
-  spdhex1 = spdhex2 = 0;
-  cfw500.twoHex(calculus->mollierData.HA, spdhex1, spdhex2);
-  piMsgBuff[19] = spdhex1;
-  piMsgBuff[20] = spdhex2;
-  spdhex1 = spdhex2 = 0;
-  cfw500.twoHex(calculus->mollierData.DEW, spdhex1, spdhex2);
-  piMsgBuff[21] = spdhex1;
-  piMsgBuff[22] = spdhex2;
-  spdhex1 = spdhex2 = 0;
-  cfw500.twoHex(calculus->mollierData.DVA, spdhex1, spdhex2);
-  piMsgBuff[23] = spdhex1;
-  piMsgBuff[24] = spdhex2;
-  spdhex1 = spdhex2 = 0;
-  cfw500.twoHex(calculus->mollierData.HE, spdhex1, spdhex2);//HE
-  piMsgBuff[25] = spdhex1;
-  piMsgBuff[26] = spdhex2;
-  spdhex1 = spdhex2 = 0;
-  cfw500.twoHex(co2Level, spdhex1, spdhex2);
-  piMsgBuff[27] = spdhex1;
-  piMsgBuff[28] = spdhex2;
-  spdhex1 = spdhex2 = 0;
-  cfw500.CRC16(piMsgBuff, 28, uchCRCLo, uchCRCHi);
-  piMsgBuff[29] = uchCRCLo;
-  piMsgBuff[30] = uchCRCHi;
+  cfw500.CRC16(piMsgBuff, 17, uchCRCLo, uchCRCHi);
+  piMsgBuff[17] = uchCRCLo;
+  piMsgBuff[18] = uchCRCHi;
 //  for(i = 0; i < 31; i++){
 //    Serial.print(piMsgBuff[i]);  
 //    Serial.print("-");
@@ -580,8 +545,8 @@ void modBusPi(byte id){
   
   digitalWrite(pin13Led, HIGH);  // Show activity
   cfw500.enableTransmit();
-  delay(11);
-  RS485Serial.write(piMsgBuff, 31);
+  delay(21);
+  RS485Serial.write(piMsgBuff, 19);
   delay(21); 
   cfw500.disableTransmit();
   digitalWrite(pin13Led, LOW);  // Show activity
@@ -607,15 +572,15 @@ void modBusChiller(byte id, byte idRoom, byte cWaterOn, byte hWaterOn){
   //  Serial.println("Sending message...");  
   cfw500.enableTransmit();
 
-  delay(11);
+  delay(21);
   RS485Serial.write(chillerBuff, 7);
-  delay(11);
+  delay(21);
   
   cfw500.disableTransmit();
   digitalWrite(pin13Led, LOW);  // Show activity
 
   for(i = 0; i < 7; i++){
-    chillerBuff[i] = 0;
+//    chillerBuff[i] = 0;
   }
   allFlush();
 }//end modBusChiller
@@ -638,15 +603,15 @@ void modBusSpeed(float mValue, uint8_t speed){
   //  Serial.println("Sending message...");  
   cfw500.enableTransmit();
 
-  delay(5);
+  delay(21);
   RS485Serial.write(buff, 8);
-  delay(5);  
+  delay(21);  
   cfw500.disableTransmit();
 
   digitalWrite(pin13Led, LOW);  // Show activity 
 
   for(i = 0; i < 8; i++){
-    buff[i] = 0;
+//    buff[i] = 0;
   }
   allFlush();
   //while-----...
@@ -735,7 +700,7 @@ float Lco2, Hco2, Lhumidity, Hhumidity;
       Lhumidity = 87;
       Hhumidity = 90;
     }//end if     
-	  mSpeed = startGrowth(averageTemperature, Ltemp, Htemp, externalTemperature, mollierSensors[0], co2Level, Lco2, Hco2, externalHumidity, calculus->mollierData.HR, Lhumidity, Hhumidity, 24);
+	  motorSpeed = startGrowth(averageTemperature, Ltemp, Htemp, externalTemperature, mollierSensors[0], co2Level, Lco2, Hco2, externalHumidity, calculus->mollierData.HR, Lhumidity, Hhumidity, 24);
 	  //Serial.println("CRECIMIENTO 1");
 	  pastState = "crecimiento 1";
   }else if(systemPhase == CONTROL_GROWTH_2){

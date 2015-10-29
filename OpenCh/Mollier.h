@@ -77,7 +77,7 @@ class Mollier{
   
   boolean requireParasite(void);
     
-  void readSensorTemperatures(void);
+  uint8_t readSensorTemperatures(void);
 
   void getCompostTemperatureSensors(float *compst);
     

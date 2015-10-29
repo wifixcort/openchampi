@@ -75,24 +75,34 @@ boolean Mollier::requireParasite(void){
 }//end requireParasite
 
     
-void Mollier::readSensorTemperatures(void){
+uint8_t Mollier::readSensorTemperatures(void){
   tempSensors1->requestTemperatures();// Send the command to get temperatures
   tempSensors2->requestTemperatures();// Send the command to get temperatures
   tempSensors3->requestTemperatures();// Send the command to get temperatures
+  uint8_t alarm = 0;
   uint8_t j = 0;
   uint8_t k = 0;
   for(uint8_t i = 0; i < 10; i++){
 	if(i < 4){//Temperatures in degress
-	  this->compostTemps[i] = tempSensors1->getTempCByIndex(i);//Compost temperatures
+	  this->compostTemps[i] = constrain(tempSensors1->getTempCByIndex(i), 0, 84);//Compost temperatures
+	  if(tempSensors1->getTempCByIndex(i) < 0){
+		alarm = 1;
+	  }//end if
 	}else if(i < 8){
-	  this->compostTemps[i] = tempSensors2->getTempCByIndex(j);//Compost temperatures
+	  this->compostTemps[i] = constrain(tempSensors2->getTempCByIndex(j), 0, 84);//Compost temperatures
+	  if(tempSensors2->getTempCByIndex(j) < 0){
+		alarm = 2;
+	  }//end if
 	  j++;
 	}else{
-	  this->mollierTemps[k] = tempSensors3->getTempCByIndex(k);//First two for Intern, next two for Extern
+	  this->mollierTemps[k] = constrain(tempSensors3->getTempCByIndex(k), 0 , 84);//First two for Intern, next two for Exter
+	  if(tempSensors3->getTempCByIndex(k) < 0){
+		alarm = 3;
+	  }//end if
 	  k++;
 	}
   }//end for
-
+  return alarm;
 }//end readSensorTemperatures
 
 
