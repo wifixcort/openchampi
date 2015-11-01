@@ -23,8 +23,11 @@ byte id = 0x03;
 int hex1, hex2;
 
 //---RaspberryPi Modbus---
-byte piMsgBuff[31] = {0x03, 0x03, 0x0D, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+//byte piMsgBuff[31] = {0x03, 0x03, 0x0D, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 //ID, READ REGISTERS, COUNT, LoTEMP, HiTEMP, LoEXTtemp, HiEXTtemp, LoEXThum, HiEXThum, LoAMBtEMP, HiAMBtEMP, LoPVA, HiPVA, LoPVS, HiPVS, LoDVT, HiDVT, LoHR, HiHR, LoHA, HiHA, LoDEW, HiDEW, LoDVA, HiDVA, LoHE, HiHE, LoCO2, HiCO2, CRC-, CRC+
+byte piMsgBuff[20] = {0x03, 0x03, 15, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+//ID, READ REGISTERS, COUNT, ROOM_ID, TEMP, EXTtemp, EXThum, AMBtEMP, PVA, PVS, DVT, HR, HA, DEW, DVA, HE, LoCO2, HiCO2, CRC-, CRC+
+
 String piMsgStr = "";
 
 unsigned long piStartT;
@@ -33,9 +36,9 @@ unsigned long piIntervalT = 1000;
 void setup() {
   // Start the built-in serial port, probably to Serial Monitor
   dbg.begin(9600);
-  dbg.println("Serial dbg Ready...");
+//  dbg.println("Serial dbg Ready...");
   RS485Serial.begin(19200);
-  dbg.println("Serial RS485Serial Ready...");
+//  dbg.println("Serial RS485Serial Ready...");
  
   pinMode(Pin13LED, OUTPUT);   
   pinMode(SSerialTxControl, OUTPUT);    
@@ -51,32 +54,45 @@ void loop() {
   
   unsigned long piCurrentT = millis();
   if((piCurrentT - piStartT) > piIntervalT){
-    dbg.println("Message");
-    dbg.println(piMsgStr);
-    for(uint8_t i = 0; i < 31; i++){
-      dbg.print(piMsgBuff[i]);
-      dbg.print("-");
-    }
-    dbg.println();
+//    dbg.println("Message");
+    //dbg.println(piMsgStr);
+//    for(uint8_t i = 0; i < 31; i++){
+//      dbg.print(piMsgBuff[i]);
+//      dbg.print("-");
+//    }
+//    dbg.println();
     piMsgStr = "";
     piStartT = piCurrentT;
   }//end if
   
   //Find CRC
-  CRC16(piMsgBuff, 28);
+  CRC16(piMsgBuff, 18);
   //Check if message is our
   if((piMsgBuff[0] == 0x03)&&(piMsgBuff[1] == 0x03)){//
-    if((piMsgBuff[29] == uchCRCLo)&&(piMsgBuff[30] == uchCRCHi)){//Check valid message
+    if((piMsgBuff[18] == uchCRCLo)&&(piMsgBuff[19] == uchCRCHi)){//Check valid message
       for(uint8_t i = 3; i< piMsgBuff[2]+3; i++){
-        hex1 = hex2 = 0;
-        int value = hexToInt(piMsgBuff[i], piMsgBuff[i+1]);
-        piMsgStr += String(value);
-        if(i+1 != piMsgBuff[i]){
-          piMsgStr += " ";
-          i++;
+          if(i < 16){
+            piMsgStr += piMsgBuff[i];
+            piMsgStr += " ";
+          }else if(i == 16){
+            int value = hexToInt(piMsgBuff[i], piMsgBuff[i+1]);
+            piMsgStr += String(value);
+            //if(i+1 != piMsgBuff[i]){
+              //piMsgStr += " ";
+            //i++;
+            break;
+          //}//end if
         }//end if
       }//end for
-      piMsgBuff[0] = 0;
+//    for(uint8_t i = 0; i < 20; i++){
+//      dbg.print(piMsgBuff[i]);
+//      dbg.print("-");
+//    }
+//    dbg.println();      
+      dbg.println(piMsgStr);
+    for(uint8_t i = 0; i < 20; i++){
+      piMsgBuff[i] = 0;
+    }
     }//end if
     
   }//end if
@@ -160,14 +176,23 @@ int hexToInt(int spdhex1, int spdhex2){
   String hexadecimal = "";
   char vals[4] = {'0','0','0','0'};
   int vhex = 0;
-  hexadecimal = String(spdhex1, HEX);
-  hexadecimal += String(spdhex2, HEX);
+  if(String(spdhex1, HEX).length() < 2){
+    hexadecimal += "0";
+    hexadecimal += String(spdhex1, HEX);
+  }else{
+    hexadecimal = String(spdhex1, HEX);
+  }
+  if(String(spdhex2, HEX).length() < 2){
+    hexadecimal += "0";
+    hexadecimal += String(spdhex2, HEX);    
+  }else{
+    hexadecimal += String(spdhex2, HEX);
+  }
+
   uint8_t j = 0;
   uint8_t i = 0;
-  for(i = 0; i < 4; i++){
-    if((hexadecimal[(hexadecimal.length()-1)-j]) != '0'){
-    vals[3-i] = hexadecimal[(hexadecimal.length()-1)-j];
-    }
+  for(i = 3; i > 0; i--){
+    vals[i] = (hexadecimal[(hexadecimal.length()-1)-j]);
     j++;
   }//end for
   char const hex_chars[16] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };  
@@ -182,6 +207,5 @@ int hexToInt(int spdhex1, int spdhex2){
   //dbg.print("value = ");
   //dbg.println(vhex);
   return vhex;
-
 }
 
