@@ -1,10 +1,4 @@
-Be shure that OpenChampi is located in your arduino sketchbook folder
+Be shure that OpenChampi folder is located in your arduino sketchbook folder
 
-Permision acces
-
-chmod 755 install.sh
-
-Run instalation script
-
-./install.sh
+Put all content of libraries folder into your Arduino libraries folder 
 
